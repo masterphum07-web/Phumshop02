@@ -1,5 +1,5 @@
-// ⚠️ เปลี่ยนเป็น URL ของ Google Apps Script ตัวใหม่ที่ Deploy ไว้ (ลงท้ายด้วย /exec)
-const API_URL = 'ใส่-URL-Apps-Script-ใหม่-ตรงนี้';
+// URL ของ Google Apps Script ที่ Deploy ไว้ (ลงท้ายด้วย /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4EuqBV2_WLFJs5XdogDuVJIQvfbgjZ8Z8Ska80N_P6OBJDk/exec';
 
 let appState = {
   documents: [], categories: [], tasks: [], flashcards: [], logs: [],
