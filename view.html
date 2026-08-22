@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>โฟลเดอร์ที่แชร์ — PHUMSHOP 02</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body { font-family: 'Prompt', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+</style>
+</head>
+<body class="text-slate-800 antialiased bg-slate-50 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+          <i class="fa-solid fa-folder-open text-lg"></i>
+        </div>
+        <div>
+          <span class="font-black text-lg tracking-tight block leading-tight" id="headerFolderName">โฟลเดอร์ที่แชร์</span>
+          <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Shared Folder · ดูอย่างเดียว</span>
+        </div>
+      </div>
+      <a href="index.html" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition">
+        <i class="fa-solid fa-layer-group"></i> เข้าสู่ระบบหลัก
+      </a>
+    </div>
+  </nav>
+
+  <div class="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+    <!-- Loading -->
+    <div id="loadingState" class="py-24 text-center text-slate-400">
+      <i class="fa-solid fa-spinner fa-spin text-4xl mb-4"></i>
+      <p class="font-medium">กำลังเปิดโฟลเดอร์...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="errorState" class="hidden py-20 text-center">
+      <div class="w-20 h-20 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl"><i class="fa-solid fa-link-slash"></i></div>
+      <h2 class="text-2xl font-black text-slate-800 mb-2">เปิดโฟลเดอร์ไม่ได้</h2>
+      <p class="text-sm text-slate-500" id="errorMessage">ลิงก์ไม่ถูกต้อง</p>
+    </div>
+
+    <!-- Content -->
+    <div id="contentState" class="hidden space-y-6">
+      <!-- Banner -->
+      <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white p-8 rounded-[2rem] shadow-xl relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+        <div class="relative z-10">
+          <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-bold tracking-wider uppercase border border-white/20">Shared with you</span>
+          <h1 class="text-3xl sm:text-4xl font-black mt-3 flex items-center gap-3">
+            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/30"><i class="fa-solid fa-folder-open"></i></div>
+            <span id="bannerFolderName">โฟลเดอร์</span>
+          </h1>
+          <p class="text-emerald-100 text-sm mt-2" id="bannerPath"></p>
+          <p class="text-emerald-100/80 text-xs mt-1" id="bannerCount"></p>
+        </div>
+      </div>
+
+      <!-- File list -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left whitespace-nowrap">
+            <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-4 font-bold">ชื่อเรื่อง</th>
+                <th class="py-3 px-2 font-bold">ประเภท</th>
+                <th class="py-3 px-2 font-bold hidden sm:table-cell">อยู่ใน</th>
+                <th class="py-3 px-2 font-bold">ผู้อัปโหลด</th>
+                <th class="py-3 px-4 font-bold text-right">เปิดไฟล์</th>
+              </tr>
+            </thead>
+            <tbody id="sharedDocTable" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 pb-4"><i class="fa-solid fa-lock mr-1"></i> หน้านี้เป็นแบบดูอย่างเดียว — ดาวน์โหลด/เปิดไฟล์ได้ แต่แก้ไขหรืออัปโหลดไม่ได้</p>
+    </div>
+  </div>
+
+  <footer class="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400 font-medium">
+    Powered by <span class="font-bold text-slate-600">PHUMSHOP 02</span> · Google Sheets + Drive
+  </footer>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4EuqBV2_WLFJs5XdogDuVJIQvfbgjZ8Z8Ska80N_P6OBJDk/exec';
+
+const token = new URLSearchParams(location.search).get('f');
+const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function showError(msg) {
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('errorMessage').innerText = msg || 'ลิงก์ไม่ถูกต้อง';
+  document.getElementById('errorState').classList.remove('hidden');
+}
+
+function renderContent(res) {
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('contentState').classList.remove('hidden');
+
+  const name = res.folder.name;
+  document.title = name + ' — PHUMSHOP 02';
+  document.getElementById('headerFolderName').innerText = name;
+  document.getElementById('bannerFolderName').innerText = name;
+  document.getElementById('bannerPath').innerHTML = '<i class="fa-solid fa-location-dot mr-1"></i> ' + esc((res.path || [name]).join(' › '));
+  document.getElementById('bannerCount').innerHTML = '<i class="fa-solid fa-file-lines mr-1"></i> ทั้งหมด ' + res.documents.length + ' ไฟล์';
+
+  const tb = document.getElementById('sharedDocTable');
+  if(res.documents.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-slate-400 font-medium text-sm">โฟลเดอร์นี้ยังไม่มีไฟล์</td></tr>';
+    return;
+  }
+
+  // เรียงกลุ่มตามชื่อโฟลเดอร์ย่อย (ไฟล์ของโฟลเดอร์แม่ขึ้นก่อน)
+  const rootName = name;
+  const groups = {};
+  res.documents.forEach(d => {
+    const g = d.folderName === rootName ? '' : d.folderName;
+    (groups[g] = groups[g] || []).push(d);
+  });
+  const order = [''].concat(Object.keys(groups).filter(k => k !== ''));
+  let html = '';
+  order.forEach(g => {
+    if(g) html += `<tr class="bg-slate-50/80"><td colspan="5" class="py-2.5 px-4 text-xs font-black text-teal-700 uppercase tracking-wider"><i class="fa-solid fa-folder mr-2"></i>${esc(g)}</td></tr>`;
+    html += groups[g].map(d => `
+      <tr class="hover:bg-slate-50 border-b transition">
+        <td class="py-3 px-4 flex items-center gap-3 font-medium text-slate-700">
+          <div class="w-8 h-8 rounded bg-teal-50 text-teal-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-pdf"></i></div>
+          <span class="truncate max-w-[240px]" title="${esc(d.title)}">${esc(d.title)}</span>
+        </td>
+        <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${esc(d.docType)}</span></td>
+        <td class="py-3 px-2 text-slate-500 text-xs hidden sm:table-cell">${esc(d.folderName)}</td>
+        <td class="py-3 px-2 text-slate-600">${esc(d.uploader)}</td>
+        <td class="py-3 px-4 text-right">
+          <a href="${esc(d.fileUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
+            เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </td>
+      </tr>`).join('');
+  });
+  tb.innerHTML = html;
+}
+
+if(!token) {
+  showError('ไม่พบรหัสโฟลเดอร์ในลิงก์');
+} else {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  fetch(API_URL + '?action=getFolderByToken&token=' + encodeURIComponent(token), { signal: controller.signal })
+    .then(r => r.json())
+    .then(res => {
+      clearTimeout(timer);
+      if(res.success) renderContent(res);
+      else showError(res.message);
+    })
+    .catch(() => showError('เชื่อมต่อไม่สำเร็จ ลองรีเฟรชอีกครั้ง'));
+}
+</script>
+</body>
+</html>

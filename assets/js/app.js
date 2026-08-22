@@ -2,9 +2,10 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4EuqBV2_WLFJs5XdogDuVJIQvfbgjZ8Z8Ska80N_P6OBJDk/exec';
 
 let appState = {
-  documents: [], categories: [], tasks: [], flashcards: [], logs: [],
+  documents: [], categories: [], tasks: [], flashcards: [], logs: [], folders: [],
   username: '', role: '',
-  selectedFiles: [], currentMode: 'file', currentTab: 'tabMain'
+  selectedFiles: [], currentMode: 'file', currentTab: 'tabMain',
+  currentFolderId: ''
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -57,6 +58,7 @@ function applyInitialData(res) {
   appState.categories = res.categories || [];
   appState.tasks = [...(res.tasks || [])].reverse();
   appState.flashcards = [...(res.flashcards || [])].reverse();
+  appState.folders = res.folders || [];
   const settings = res.settings || {};
   document.getElementById('bannerTitle').innerText = settings.header_title || 'DOC HUB';
   document.getElementById('navTitle').innerText = settings.header_title || 'DOC HUB';
@@ -73,6 +75,7 @@ function applyInitialData(res) {
     document.getElementById('settingSiteIcon').value = settings.site_icon || 'fa-layer-group';
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
+  renderFolderView();
   if(appState.username && appState.role === 'admin') updateDashboardStats();
 }
 
@@ -91,16 +94,46 @@ function refreshData(forceNetwork = false) {
   });
 }
 
+// หา path เต็มของโฟลเดอร์ เช่น "ปี 1 / คณิตศาสตร์ / สรุป"
+function folderPathOf(folderId) {
+  let path = [];
+  let cur = appState.folders.find(f => f.id === folderId);
+  let guard = 0;
+  while(cur && guard < 20) {
+    path.unshift(cur.name);
+    cur = cur.parentId ? appState.folders.find(f => f.id === cur.parentId) : null;
+    guard++;
+  }
+  return path.join(' / ');
+}
+
+function folderDepthOf(folderId) {
+  let depth = 0;
+  let cur = appState.folders.find(f => f.id === folderId);
+  let guard = 0;
+  while(cur && cur.parentId && guard < 20) {
+    depth++;
+    cur = appState.folders.find(f => f.id === cur.parentId);
+    guard++;
+  }
+  return depth;
+}
+
 function updateCategoryDropdowns() {
   const cats = appState.categories.filter(c => c.name.trim() !== '').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
   document.getElementById('categoryFilter').innerHTML = '<option value="">ทุกวิชา</option>' + cats;
 
-  const docCategorySelect = document.getElementById('docCategorySelect');
-  if (docCategorySelect) {
-    const currentValue = docCategorySelect.value;
-    docCategorySelect.innerHTML = '<option value="">เลือกวิชา</option>' + cats;
-    if ([...docCategorySelect.options].some(option => option.value === currentValue)) {
-      docCategorySelect.value = currentValue;
+  // ตัวเลือกโฟลเดอร์ในฟอร์มอัปโหลด (เรียงตามชื่อ + เยื้องตามความลึก)
+  const docFolderSelect = document.getElementById('docFolderSelect');
+  if (docFolderSelect) {
+    const currentValue = docFolderSelect.value;
+    const sorted = [...appState.folders].sort((a, b) => folderPathOf(a.id).localeCompare(folderPathOf(b.id), 'th'));
+    docFolderSelect.innerHTML = '<option value="">เลือกโฟลเดอร์</option>' + sorted.map(f => {
+      const depth = folderDepthOf(f.id);
+      return `<option value="${f.id}">${'&nbsp;&nbsp;&nbsp;'.repeat(depth)}${depth > 0 ? '↳ ' : '📁 '}${f.name}</option>`;
+    }).join('');
+    if ([...docFolderSelect.options].some(option => option.value === currentValue)) {
+      docFolderSelect.value = currentValue;
     }
   }
   
@@ -367,28 +400,27 @@ async function handleFormSubmit(e) {
   e.preventDefault();
   const title = document.getElementById('docTitleName').value;
   const uploader = document.getElementById('uploaderName').value;
-  const cat = document.getElementById('docCategorySelect').value;
+  const folderId = document.getElementById('docFolderSelect').value;
   const docType = document.getElementById('docTypeSelect').value;
-  
+
+  if(!folderId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกโฟลเดอร์ก่อนอัปโหลด (สร้างโฟลเดอร์ได้ที่แท็บคลังโฟลเดอร์)', 'warning');
+
   if(appState.currentMode === 'link') {
     const url = document.getElementById('docLinkUrl').value;
     Swal.fire({ title: 'กำลังอัปโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
-    // Fallback to fetch GET for cross-origin if needed, but since it's write operation, we will use JSONP technique or just rely on backend responding without CORS or ignoring response.
-    // In Google Apps Script, if you deploy Web App with "Anyone", GET/POST requests from anywhere work, but CORS headers are tricky.
-    // Assuming backend is deployed correctly.
-    const formUrl = API_URL + `?action=uploadDocumentByLink&docTitle=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}&category=${encodeURIComponent(cat)}&uploader=${encodeURIComponent(uploader)}&docType=${encodeURIComponent(docType)}`;
+
+    const formUrl = API_URL + `?action=uploadDocumentByLink&docTitle=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}&folderId=${encodeURIComponent(folderId)}&uploader=${encodeURIComponent(uploader)}&docType=${encodeURIComponent(docType)}`;
     fetch(formUrl).then(() => {
       Swal.fire('สำเร็จ!', 'เพิ่มเอกสารจากลิงก์เรียบร้อย', 'success');
       document.getElementById('uploadForm').reset();
-      refreshData();
+      refreshData(true);
     }).catch(() => Swal.fire('สำเร็จ', 'ส่งคำสั่งเรียบร้อย (ไม่สามารถอ่านสถานะได้)', 'success'));
-    
+
   } else {
     if(appState.selectedFiles.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกไฟล์ก่อนอัปโหลด', 'warning');
-    
+
     Swal.fire({ title: 'กำลังอัปโหลดไฟล์...', text: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่าง)', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     let successCount = 0;
     for(let file of appState.selectedFiles) {
       const base64 = await new Promise(r => {
@@ -396,13 +428,13 @@ async function handleFormSubmit(e) {
         reader.onload = () => r(reader.result.split(',')[1]);
         reader.readAsDataURL(file);
       });
-      
+
       const payload = {
         action: 'uploadFileToDrive',
         base64Data: base64, filename: file.name, mimeType: file.type,
-        category: cat, uploader: uploader, docTitle: title, docType: docType
+        folderId: folderId, uploader: uploader, docTitle: title, docType: docType
       };
-      
+
       await fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
@@ -410,7 +442,7 @@ async function handleFormSubmit(e) {
       });
       successCount++;
     }
-    
+
     Swal.fire('สำเร็จ!', `อัปโหลด ${successCount} ไฟล์เรียบร้อย`, 'success');
     document.getElementById('uploadForm').reset();
     appState.selectedFiles = [];
@@ -523,7 +555,7 @@ function deleteFlashcard(id, event) {
 // ---------------------------------------------------
 function switchTab(tabId) {
   appState.currentTab = tabId;
-  ['tabMain', 'tabStudy', 'tabDashboard'].forEach(id => {
+  ['tabMain', 'tabFolders', 'tabStudy', 'tabDashboard'].forEach(id => {
     document.getElementById(id).classList.add('hidden');
     document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).classList.replace('text-blue-600', 'text-slate-500');
     document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).classList.replace('bg-white', 'bg-transparent');
@@ -830,8 +862,235 @@ function handleAddSubjectUI() {
 
 function handleDeleteSubject(name) {
   if(!confirm(`คุณต้องการลบวิชา "${name}" ใช่หรือไม่?\n\n(วิชานี้จะถูกลบออกจากตัวเลือก แต่เอกสารเดิมจะไม่หายไป)`)) return;
-  
+
   fetch(API_URL + `?action=deleteCategory&subjectName=${encodeURIComponent(name)}&username=${appState.username || 'guest'}`).then(() => {
     refreshData().then(() => renderSubjectManagerList());
   });
+}
+
+// ---------------------------------------------------
+// Folder Explorer (คลังโฟลเดอร์) + Share Links
+// ---------------------------------------------------
+function openFolder(folderId) {
+  appState.currentFolderId = folderId || '';
+  renderFolderView();
+}
+
+function renderFolderView() {
+  const grid = document.getElementById('folderGrid');
+  const crumbs = document.getElementById('folderBreadcrumb');
+  if(!grid || !crumbs) return;
+
+  const cur = appState.currentFolderId;
+  const isNone = cur === '__none__';
+
+  // Breadcrumb: หน้าแรก > ปี 1 > คณิต...
+  let chain = [];
+  let c = appState.folders.find(f => f.id === cur);
+  let guard = 0;
+  while(c && guard < 20) { chain.unshift(c); c = appState.folders.find(f => f.id === c.parentId); guard++; }
+
+  if(isNone) {
+    crumbs.innerHTML = `<span class="text-slate-800"><i class="fa-solid fa-inbox mr-2 text-teal-500"></i>ยังไม่ได้จัดโฟลเดอร์</span>`;
+  } else {
+    crumbs.innerHTML = `<button onclick="openFolder('')" class="px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition"><i class="fa-solid fa-house mr-1"></i>หน้าแรก</button>` +
+      chain.map((f, i) => {
+        const isLast = i === chain.length - 1;
+        return `<i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>` +
+          (isLast ? `<span class="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg">${f.name}</span>`
+                  : `<button onclick="openFolder('${f.id}')" class="px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition">${f.name}</button>`);
+      }).join('');
+  }
+
+  // การ์ดโฟลเดอร์ย่อย
+  const children = appState.folders.filter(f => (f.parentId || '') === (cur || ''));
+  const docsInFolder = isNone
+    ? appState.documents.filter(d => !d.folderId)
+    : (cur ? appState.documents.filter(d => (d.folderId || '') === cur) : appState.documents);
+  const childCount = id => appState.folders.filter(f => (f.parentId || '') === id).length;
+
+  let cards = children.map(f => {
+    const fileCount = appState.documents.filter(d => (d.folderId || '') === f.id).length;
+    const hasChild = childCount(f.id) > 0;
+    const shareBadge = f.shareEnabled ? `<span class="absolute top-3 right-3 w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow" title="เปิดแชร์อยู่"><i class="fa-solid fa-share-nodes text-[10px]"></i></span>` : '';
+    return `
+      <div onclick="openFolder('${f.id}')" class="group relative bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-lg hover:border-teal-300 transition cursor-pointer hover:-translate-y-1">
+        ${shareBadge}
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition ${hasChild ? 'bg-teal-100 text-teal-600' : 'bg-amber-100 text-amber-600'}">
+          <i class="fa-solid ${hasChild ? 'fa-folder-tree' : 'fa-folder'} text-xl"></i>
+        </div>
+        <p class="font-bold text-slate-800 text-sm truncate" title="${f.name}">${f.name}</p>
+        <p class="text-[11px] text-slate-400 mt-1">${fileCount} ไฟล์${hasChild ? ` · ${childCount(f.id)} โฟลเดอร์ย่อย` : ''}</p>
+        <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition" onclick="event.stopPropagation()">
+          <button onclick="openShareModal('${f.id}')" class="flex-1 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-[11px] font-bold transition"><i class="fa-solid fa-share-nodes mr-1"></i>แชร์</button>
+          <button onclick="handleDeleteFolder('${f.id}')" class="px-2.5 py-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg text-[11px] font-bold transition" title="ลบโฟลเดอร์"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </div>`;
+  }).join('');
+
+  // การ์ด "ยังไม่ได้จัดโฟลเดอร์" (เฉพาะหน้าแรก)
+  if(!cur) {
+    const noneCount = appState.documents.filter(d => !d.folderId).length;
+    if(noneCount > 0) {
+      cards += `
+      <div onclick="openFolder('__none__')" class="group bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-5 shadow-sm hover:shadow-lg hover:border-slate-400 transition cursor-pointer hover:-translate-y-1">
+        <div class="w-12 h-12 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-inbox text-xl"></i></div>
+        <p class="font-bold text-slate-600 text-sm">ยังไม่ได้จัดโฟลเดอร์</p>
+        <p class="text-[11px] text-slate-400 mt-1">${noneCount} ไฟล์</p>
+      </div>`;
+    }
+  }
+
+  grid.innerHTML = cards || `<p class="col-span-full text-center text-slate-400 text-sm py-8">ยังไม่มีโฟลเดอร์ — กดปุ่ม "จัดการโฟลเดอร์" ด้านบนเพื่อสร้างโฟลเดอร์แรก</p>`;
+
+  // ตารางไฟล์ในโฟลเดอร์ปัจจุบัน
+  document.getElementById('folderFileTitle').innerText = isNone ? 'ไฟล์ที่ยังไม่ได้จัดโฟลเดอร์' : (cur ? 'ไฟล์ในโฟลเดอร์นี้' : 'ไฟล์ทั้งหมด');
+  document.getElementById('folderFileCount').innerText = `${docsInFolder.length} ไฟล์`;
+  const tb = document.getElementById('folderDocTableBody');
+  if(docsInFolder.length === 0) {
+    tb.innerHTML = `<tr><td colspan="4" class="py-10 text-center text-slate-400 text-sm font-medium">ไม่มีไฟล์ในนี้</td></tr>`;
+  } else {
+    tb.innerHTML = docsInFolder.map(d => `
+      <tr class="hover:bg-slate-50 border-b transition">
+        <td class="py-3 px-4 flex items-center gap-3 font-medium text-slate-700">
+          <div class="w-8 h-8 rounded bg-teal-50 text-teal-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-pdf"></i></div>
+          <span class="truncate max-w-[220px]" title="${d.title}">${d.title}</span>
+        </td>
+        <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${d.docType || 'ทั่วไป'}</span></td>
+        <td class="py-3 px-2 text-slate-600">${d.uploader}</td>
+        <td class="py-3 px-4 text-right">
+          <button onclick="openIframeModal('${d.fileUrl}', '${d.title}')" class="inline-flex items-center gap-1.5 text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
+            เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+}
+
+// ---------------------------------------------------
+// Folder Manager
+// ---------------------------------------------------
+function openFolderManager() {
+  document.getElementById('folderManagerModal').classList.remove('hidden');
+  renderFolderManagerList();
+}
+
+function renderFolderManagerList() {
+  const parentSel = document.getElementById('newFolderParent');
+  const sorted = [...appState.folders].sort((a, b) => folderPathOf(a.id).localeCompare(folderPathOf(b.id), 'th'));
+  parentSel.innerHTML = '<option value="">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</option>' + sorted.map(f => {
+    const depth = folderDepthOf(f.id);
+    return `<option value="${f.id}">${'— '.repeat(depth)}${f.name}</option>`;
+  }).join('');
+
+  const list = document.getElementById('folderManagerList');
+  if(appState.folders.length === 0) {
+    list.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ยังไม่มีโฟลเดอร์</p>`;
+    return;
+  }
+  list.innerHTML = sorted.map(f => {
+    const depth = folderDepthOf(f.id);
+    return `
+    <div class="flex justify-between items-center bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition">
+      <span class="text-sm font-bold text-slate-700 truncate" title="${folderPathOf(f.id)}">${'<span class="text-slate-300 mr-1">' + '·&nbsp;'.repeat(depth) + '</span>'}${depth > 0 ? '↳ ' : '📁 '}${f.name}</span>
+      <div class="flex gap-1.5 shrink-0">
+        <button onclick="openShareModal('${f.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-[11px] font-bold transition"><i class="fa-solid fa-share-nodes mr-1"></i>${f.shareEnabled ? 'แชร์อยู่' : 'แชร์'}</button>
+        <button onclick="handleDeleteFolder('${f.id}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบ"><i class="fa-solid fa-trash-can text-sm"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function handleAddFolderUI() {
+  const name = document.getElementById('newFolderNameUI').value;
+  const parentId = document.getElementById('newFolderParent').value;
+  if(!name) return;
+
+  fetch(API_URL + `?action=addFolder&name=${encodeURIComponent(name)}&parentId=${encodeURIComponent(parentId)}&username=${encodeURIComponent(appState.username || 'guest')}`).then(r => r.json()).then(res => {
+    if(!res.success) return Swal.fire('ไม่สำเร็จ', res.message, 'warning');
+    document.getElementById('newFolderNameUI').value = '';
+    refreshData(true).then(() => {
+      renderFolderManagerList();
+      renderFolderView();
+    });
+  }).catch(() => {
+    document.getElementById('newFolderNameUI').value = '';
+    refreshData(true).then(() => { renderFolderManagerList(); renderFolderView(); });
+  });
+}
+
+function handleDeleteFolder(id) {
+  const f = appState.folders.find(x => x.id === id);
+  if(!confirm(`ลบโฟลเดอร์ "${f ? f.name : id}" ใช่หรือไม่?\n\n(ลบได้เฉพาะโฟลเดอร์เปล่า ถ้ามีไฟล์หรือโฟลเดอร์ย่อยจะลบไม่ได้)`)) return;
+
+  fetch(API_URL + `?action=deleteFolder&folderId=${encodeURIComponent(id)}&username=${encodeURIComponent(appState.username || 'guest')}`).then(r => r.json()).then(res => {
+    if(!res.success) return Swal.fire('ลบไม่ได้', res.message, 'warning');
+    if(appState.currentFolderId === id) appState.currentFolderId = '';
+    refreshData(true).then(() => {
+      renderFolderManagerList();
+      renderFolderView();
+    });
+  });
+}
+
+// ---------------------------------------------------
+// Folder Share Modal
+// ---------------------------------------------------
+function buildShareLink(token) {
+  const base = location.origin + location.pathname.replace(/index\.html$/, '');
+  return base + 'view.html?f=' + token;
+}
+
+function openShareModal(folderId) {
+  window._shareTargetId = folderId;
+  renderShareModal();
+  document.getElementById('shareFolderModal').classList.remove('hidden');
+}
+
+function closeShareModal() {
+  document.getElementById('shareFolderModal').classList.add('hidden');
+}
+
+function renderShareModal() {
+  const f = appState.folders.find(x => x.id === window._shareTargetId);
+  if(!f) return;
+  document.getElementById('shareFolderName').innerText = folderPathOf(f.id);
+  const area = document.getElementById('shareStatusArea');
+
+  if(f.shareEnabled && f.shareToken) {
+    const link = buildShareLink(f.shareToken);
+    area.innerHTML = `
+      <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-700 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check"></i> เปิดแชร์อยู่ — คนที่มีลิงก์ดูได้
+      </div>
+      <div class="flex gap-2">
+        <input type="text" readonly value="${link}" id="shareLinkInput" class="flex-1 px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-600 outline-none">
+        <button onclick="copyShareLink()" class="px-4 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition"><i class="fa-solid fa-copy mr-1"></i>คัดลอก</button>
+      </div>
+      <button onclick="toggleFolderShare(false)" class="w-full py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-xs font-bold transition"><i class="fa-solid fa-ban mr-1"></i>ปิดการแชร์ (ลิงก์จะใช้ไม่ได้ทันที)</button>`;
+  } else {
+    area.innerHTML = `
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info"></i> ยังไม่ได้เปิดแชร์ — กดปุ่มด้านล่างเพื่อสร้างลิงก์
+      </div>
+      <button onclick="toggleFolderShare(true)" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition"><i class="fa-solid fa-link mr-2"></i>สร้างลิงก์แชร์โฟลเดอร์นี้</button>`;
+  }
+}
+
+function toggleFolderShare(enabled) {
+  fetch(API_URL + `?action=setFolderShare&folderId=${encodeURIComponent(window._shareTargetId)}&enabled=${enabled}&username=${encodeURIComponent(appState.username || 'guest')}`)
+    .then(r => r.json()).then(res => {
+      if(!res.success) return Swal.fire('ไม่สำเร็จ', res.message, 'warning');
+      return refreshData(true).then(() => renderShareModal());
+    })
+    .catch(() => refreshData(true).then(() => renderShareModal()));
+}
+
+function copyShareLink() {
+  const input = document.getElementById('shareLinkInput');
+  input.select();
+  const done = () => Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์แล้ว', text: 'ส่งลิงก์นี้ให้เพื่อนได้เลย', timer: 1600, showConfirmButton: false });
+  if(navigator.clipboard) navigator.clipboard.writeText(input.value).then(done).catch(() => { document.execCommand('copy'); done(); });
+  else { document.execCommand('copy'); done(); }
 }

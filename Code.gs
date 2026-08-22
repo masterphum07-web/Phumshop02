@@ -62,9 +62,9 @@ function handleRequest(data) {
   } else if (action === 'deleteCategory') {
     return deleteCategory(data.subjectName, data.username);
   } else if (action === 'uploadFileToDrive') {
-    return uploadFileToDrive(data.base64Data, data.filename, data.mimeType, data.category, data.uploader, data.docTitle, data.docType);
+    return uploadFileToDrive(data.base64Data, data.filename, data.mimeType, data.category, data.uploader, data.docTitle, data.docType, data.folderId);
   } else if (action === 'uploadDocumentByLink') {
-    return uploadDocumentByLink(data.docTitle, data.url, data.category, data.uploader, data.docType);
+    return uploadDocumentByLink(data.docTitle, data.url, data.category, data.uploader, data.docType, data.folderId);
   } else if (action === 'addChecklistTask') {
     return addChecklistTask(data.username, data.subject, data.detail);
   } else if (action === 'toggleChecklistTask') {
@@ -79,6 +79,14 @@ function handleRequest(data) {
     return updateSettings(data.settings, data.username);
   } else if (action === 'setupSheet') {
     return setupSheet();
+  } else if (action === 'addFolder') {
+    return addFolder(data.name, data.parentId, data.username);
+  } else if (action === 'deleteFolder') {
+    return deleteFolder(data.folderId, data.username);
+  } else if (action === 'setFolderShare') {
+    return setFolderShare(data.folderId, data.enabled, data.username);
+  } else if (action === 'getFolderByToken') {
+    return getFolderByToken(data.token);
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -132,16 +140,17 @@ function getInitialData() {
          let docType = row[8] ? String(row[8]) : "ทั่วไป"; 
          
          categoriesSet.add(category);
-         documents.push({ 
+         documents.push({
            id: "DOC_" + i,
-           title: title, 
-           uploader: uploader, 
-           uploadDate: String(row[0]), 
-           fileSize: 0, 
-           category: category, 
+           title: title,
+           uploader: uploader,
+           uploadDate: String(row[0]),
+           fileSize: 0,
+           category: category,
            fileUrl: fileUrl,
            originalFilename: originalFilename,
-           docType: docType
+           docType: docType,
+           folderId: row[9] ? String(row[9]) : ""
          });
       }
     }
@@ -173,12 +182,24 @@ function getInitialData() {
       }
     }
 
+    // 5. ดึงข้อมูลโฟลเดอร์
+    let folders = [];
+    const folderSheet = ss.getSheetByName("Folders");
+    if(folderSheet) {
+      const data = folderSheet.getDataRange().getDisplayValues();
+      for(let i=1; i<data.length; i++) {
+        if(data[i][0]) {
+          folders.push({ id: String(data[i][0]), name: String(data[i][1]), parentId: data[i][2] ? String(data[i][2]) : "", shareToken: data[i][3] ? String(data[i][3]) : "", shareEnabled: data[i][4] ? String(data[i][4]).toUpperCase() === "TRUE" : false });
+        }
+      }
+    }
+
     return { success: true, settings: {
       header_title: settings.bannerTitle, cta_text: settings.bannerSubtitle,
       primary_color: settings.primaryColor, accent_color: settings.accentColor,
       background_color: settings.backgroundColor, banner_button_text: settings.bannerButtonText,
       show_banner: settings.showBanner, site_icon: settings.siteIcon
-    }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards };
+    }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders };
   } catch (e) {
     return { success: false, error: e.toString() };
   }
@@ -236,9 +257,31 @@ function deleteCategory(subjectName, username) {
   } catch(e) { return ContentService.createTextOutput(JSON.stringify({ success: false, message: e.toString() })).setMimeType(ContentService.MimeType.JSON); }
 }
 
-function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, docTitle, docType) {
+// หา path เต็มของโฟลเดอร์ เช่น "ปี 1 / คณิตศาสตร์ / สรุป"
+function getFolderPath(ss, folderId) {
+  if(!folderId) return "";
+  const sheet = ss.getSheetByName("Folders");
+  if(!sheet) return "";
+  const data = sheet.getDataRange().getDisplayValues();
+  let path = [];
+  let currentId = String(folderId);
+  let guard = 0;
+  while(currentId && guard < 20) {
+    let found = null;
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === currentId) { found = data[i]; break; }
+    }
+    if(!found) break;
+    path.unshift(String(found[1]));
+    currentId = found[2] ? String(found[2]) : "";
+    guard++;
+  }
+  return path.join(" / ");
+}
+
+function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, docTitle, docType, folderId) {
   try {
-    const folder = DriveApp.getFolderById(FOLDER_ID); 
+    const folder = DriveApp.getFolderById(FOLDER_ID);
     const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, filename);
     const file = folder.createFile(blob);
     // บาง Google Workspace ปิดการแชร์สาธารณะไว้ จึงไม่ให้ขั้นตอนนี้ทำให้ข้อมูลไม่ถูกบันทึกลงชีต
@@ -246,17 +289,21 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
     if(!docSheet) throw new Error(`ไม่พบชีต ${SHEET_NAME}`);
-    docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), category, filename, docType || "ทั่วไป"]);
+    const folderPath = folderId ? getFolderPath(ss, folderId) : "";
+    const finalCategory = folderPath || category || "ทั่วไป";
+    docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || ""]);
     logActivity(`อัปโหลดไฟล์: ${docTitle || filename} โดย ${uploader}`);
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 
-function uploadDocumentByLink(docTitle, url, category, uploader, docType) {
+function uploadDocumentByLink(docTitle, url, category, uploader, docType, folderId) {
   try {
     const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
-    if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, category, "External Link", docType || "ทั่วไป"]);
+    const folderPath = folderId ? getFolderPath(ss, folderId) : "";
+    const finalCategory = folderPath || category || "ทั่วไป";
+    if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || ""]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
@@ -371,6 +418,151 @@ function logActivity(detail) {
 }
 
 // ------------------------------------------------------------------
+// ระบบโฟลเดอร์ (ซ้อนกี่ชั้นก็ได้) + ลิงก์แชร์เฉพาะโฟลเดอร์
+// ------------------------------------------------------------------
+function addFolder(name, parentId, username) {
+  try {
+    if(!name || !String(name).trim()) return { success: false, message: "กรุณาพิมพ์ชื่อโฟลเดอร์" };
+    const ss = getSS();
+    let sheet = ss.getSheetByName("Folders");
+    if(!sheet) { sheet = ss.insertSheet("Folders"); sheet.appendRow(["ID", "Name", "ParentID", "ShareToken", "ShareEnabled", "CreatedBy"]); }
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][1]).trim() === String(name).trim() && String(data[i][2] || "") === String(parentId || "")) {
+        return { success: false, message: "มีโฟลเดอร์ชื่อนี้อยู่แล้วในตำแหน่งเดียวกัน" };
+      }
+    }
+    sheet.appendRow(["FLD_" + Utilities.getUuid().substring(0,8), String(name).trim(), parentId || "", "", "FALSE", username || "guest"]);
+    logActivity(`${username || "ผู้ใช้"} สร้างโฟลเดอร์: ${name}`);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function deleteFolder(folderId, username) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName("Folders");
+    if(!sheet) return { success: false, message: "ไม่พบชีต Folders" };
+    const data = sheet.getDataRange().getDisplayValues();
+    let rowIndex = -1;
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === String(folderId)) { rowIndex = i + 1; break; }
+    }
+    if(rowIndex === -1) return { success: false, message: "ไม่พบโฟลเดอร์" };
+
+    // ป้องกันลบตอนยังมีของข้างใน
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][2] || "") === String(folderId)) {
+        return { success: false, message: "โฟลเดอร์นี้มีโฟลเดอร์ย่อยอยู่ กรุณาลบโฟลเดอร์ย่อยออกก่อน" };
+      }
+    }
+    const docSheet = ss.getSheetByName(SHEET_NAME);
+    if(docSheet) {
+      const dData = docSheet.getDataRange().getDisplayValues();
+      for(let i=1; i<dData.length; i++) {
+        if(dData[i][9] && String(dData[i][9]) === String(folderId)) {
+          return { success: false, message: "โฟลเดอร์นี้มีไฟล์อยู่ข้างใน กรุณาย้ายหรือลบไฟล์ออกก่อน" };
+        }
+      }
+    }
+
+    sheet.deleteRow(rowIndex);
+    logActivity(`${username || "ผู้ใช้"} ลบโฟลเดอร์ ID: ${folderId}`);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function setFolderShare(folderId, enabled, username) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName("Folders");
+    if(!sheet) return { success: false, message: "ไม่พบชีต Folders" };
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === String(folderId)) {
+        if(enabled) {
+          let token = data[i][3] ? String(data[i][3]) : "";
+          if(!token) token = Utilities.getUuid().substring(0, 12);
+          sheet.getRange(i+1, 4).setValue(token);
+          sheet.getRange(i+1, 5).setValue("TRUE");
+          logActivity(`${username || "ผู้ใช้"} เปิดแชร์โฟลเดอร์: ${data[i][1]}`);
+          return { success: true, token: token };
+        } else {
+          sheet.getRange(i+1, 5).setValue("FALSE");
+          logActivity(`${username || "ผู้ใช้"} ปิดแชร์โฟลเดอร์: ${data[i][1]}`);
+          return { success: true, token: "" };
+        }
+      }
+    }
+    return { success: false, message: "ไม่พบโฟลเดอร์" };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// หน้าแชร์สาธารณะ: ให้คนมีลิงก์ดูไฟล์ในโฟลเดอร์ + โฟลเดอร์ย่อยทั้งหมด (อ่านอย่างเดียว)
+function getFolderByToken(token) {
+  try {
+    if(!token) return { success: false, message: "ลิงก์ไม่ถูกต้อง" };
+    const ss = getSS();
+    const folderSheet = ss.getSheetByName("Folders");
+    if(!folderSheet) return { success: false, message: "ยังไม่มีระบบโฟลเดอร์" };
+    const fData = folderSheet.getDataRange().getDisplayValues();
+
+    let target = null;
+    for(let i=1; i<fData.length; i++) {
+      if(fData[i][3] && String(fData[i][3]) === String(token) && String(fData[i][4]).toUpperCase() === "TRUE") {
+        target = fData[i];
+        break;
+      }
+    }
+    if(!target) return { success: false, message: "ลิงก์นี้ไม่ถูกต้อง หรือถูกปิดการแชร์ไปแล้ว" };
+
+    // สร้างแผนที่ความสัมพันธ์โฟลเดอร์
+    const idToName = {}, parentOf = {}, childrenOf = {};
+    for(let i=1; i<fData.length; i++) {
+      if(!fData[i][0]) continue;
+      const id = String(fData[i][0]);
+      idToName[id] = String(fData[i][1]);
+      const p = fData[i][2] ? String(fData[i][2]) : "";
+      parentOf[id] = p;
+      if(!childrenOf[p]) childrenOf[p] = [];
+      childrenOf[p].push(id);
+    }
+
+    // เก็บโฟลเดอร์ย่อยทั้งหมด (ลูก หลาน ฯลฯ)
+    const includeIds = [String(target[0])];
+    const queue = [String(target[0])];
+    while(queue.length > 0) {
+      const cur = queue.shift();
+      (childrenOf[cur] || []).forEach(function(childId) { includeIds.push(childId); queue.push(childId); });
+    }
+
+    // เส้นทาง breadcrumb
+    const path = [String(target[1])];
+    let pid = parentOf[String(target[0])] || "";
+    let guard = 0;
+    while(pid && idToName[pid] && guard < 20) { path.unshift(idToName[pid]); pid = parentOf[pid] || ""; guard++; }
+
+    // เอกสารในโฟลเดอร์ + โฟลเดอร์ย่อย
+    const docSheet = ss.getSheetByName(SHEET_NAME);
+    let documents = [];
+    if(docSheet) {
+      const dData = docSheet.getDataRange().getDisplayValues();
+      for(let i=1; i<dData.length; i++) {
+        const fid = dData[i][9] ? String(dData[i][9]) : "";
+        if(fid && includeIds.indexOf(fid) !== -1) {
+          documents.push({ title: String(dData[i][2] || "ไม่มีชื่อ"), uploader: dData[i][4] ? String(dData[i][4]) : "-", docType: dData[i][8] ? String(dData[i][8]) : "ทั่วไป", fileUrl: dData[i][5] ? String(dData[i][5]) : "#", folderName: idToName[fid] || "" });
+        }
+      }
+    }
+
+    // ชื่อโฟลเดอร์ย่อยชั้นแรก (ไว้แสดงหัวข้อกลุ่ม)
+    const subfolders = (childrenOf[String(target[0])] || []).map(function(id) { return { name: idToName[id] || id }; });
+
+    return { success: true, folder: { name: String(target[1]) }, path: path, subfolders: subfolders, documents: documents };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ------------------------------------------------------------------
 // 🚀 ตัวช่วยติดตั้งระบบอัตโนมัติ — รันครั้งเดียว สร้างทุกอย่างให้ครบ
 // วิธีใช้: เปิด Google Sheet ใหม่ → Extensions → Apps Script →
 //          วางโค้ดนี้ทั้งไฟล์ → เลือกฟังก์ชัน setupSheet → กด Run
@@ -390,11 +582,14 @@ function setupSheet() {
 function setupAllSheets(ss) {
   const HEADER_BG = "#eef2ff";
 
-  // 1) Database — คลังเอกสาร (9 คอลัมน์ ห้ามสลับลำดับ)
+  // 1) Database — คลังเอกสาร (10 คอลัมน์ ห้ามสลับลำดับ)
   let db = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   if (db.getLastRow() === 0) {
-    db.appendRow(["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา"]);
-    db.getRange(1, 1, 1, 9).setFontWeight("bold").setBackground(HEADER_BG);
+    db.appendRow(["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา", "FolderID"]);
+    db.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground(HEADER_BG);
+  } else if (db.getLastColumn() < 10) {
+    // ชีตเดิมที่ยังไม่มีคอลัมน์ FolderID → เติมให้ (ไม่กระทบข้อมูลเก่า)
+    db.getRange(1, 10).setValue("FolderID").setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // 2) Users — บัญชีเข้าสู่ระบบ (⚠️ อย่าลืมเปลี่ยนรหัสผ่าน admin หลังติดตั้ง!)
@@ -447,6 +642,13 @@ function setupAllSheets(ss) {
     logs.appendRow(["เวลา", "รายละเอียด"]);
     logs.getRange(1, 1, 1, 2).setFontWeight("bold").setBackground(HEADER_BG);
     logs.appendRow([Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss"), "ติดตั้งระบบครั้งแรกโดย setupSheet"]);
+  }
+
+  // 8) Folders — โครงสร้างโฟลเดอร์ซ้อนชั้น
+  let fold = ss.getSheetByName("Folders") || ss.insertSheet("Folders");
+  if (fold.getLastRow() === 0) {
+    fold.appendRow(["ID", "Name", "ParentID", "ShareToken", "ShareEnabled", "CreatedBy"]);
+    fold.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // ลบแท็บ Sheet1 เปล่าที่ Google สร้างมาให้ตอนแรก
