@@ -290,7 +290,8 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     let docSheet = ss.getSheetByName(SHEET_NAME);
     if(!docSheet) throw new Error(`ไม่พบชีต ${SHEET_NAME}`);
     const folderPath = folderId ? getFolderPath(ss, folderId) : "";
-    const finalCategory = folderPath || category || "ทั่วไป";
+    // ถ้าเลือกวิชาไว้ให้ใช้วิชา แต่ถ้าไม่ระบุวิชาให้ใช้ชื่อเส้นทางโฟลเดอร์แทน
+    const finalCategory = category || folderPath || "ทั่วไป";
     docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || ""]);
     logActivity(`อัปโหลดไฟล์: ${docTitle || filename} โดย ${uploader}`);
     return { success: true };
@@ -302,7 +303,8 @@ function uploadDocumentByLink(docTitle, url, category, uploader, docType, folder
     const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
     const folderPath = folderId ? getFolderPath(ss, folderId) : "";
-    const finalCategory = folderPath || category || "ทั่วไป";
+    // ถ้าเลือกวิชาไว้ให้ใช้วิชา แต่ถ้าไม่ระบุวิชาให้ใช้ชื่อเส้นทางโฟลเดอร์แทน
+    const finalCategory = category || folderPath || "ทั่วไป";
     if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || ""]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
     return { success: true };

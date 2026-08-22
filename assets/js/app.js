@@ -136,6 +136,16 @@ function updateCategoryDropdowns() {
       docFolderSelect.value = currentValue;
     }
   }
+
+  // ตัวเลือกวิชา (ใช้กับโหมดเตรียมสอบ) — ไม่ระบุก็ได้ จะใช้ชื่อตามโฟลเดอร์แทน
+  const docCategorySelect = document.getElementById('docCategorySelect');
+  if (docCategorySelect) {
+    const currentValue = docCategorySelect.value;
+    docCategorySelect.innerHTML = '<option value="">ไม่ระบุ</option>' + cats;
+    if ([...docCategorySelect.options].some(option => option.value === currentValue)) {
+      docCategorySelect.value = currentValue;
+    }
+  }
   
   const catsForStudy = appState.categories.filter(c => c.name.trim() !== '').map(c => `<option value="${c.name}" class="text-slate-800">${c.name}</option>`).join('');
   document.getElementById('studySubjectFilter').innerHTML = '<option value="" class="text-slate-800">เลือกวิชาทั้งหมด</option>' + catsForStudy;
@@ -401,6 +411,7 @@ async function handleFormSubmit(e) {
   const title = document.getElementById('docTitleName').value;
   const uploader = document.getElementById('uploaderName').value;
   const folderId = document.getElementById('docFolderSelect').value;
+  const cat = document.getElementById('docCategorySelect').value;
   const docType = document.getElementById('docTypeSelect').value;
 
   if(!folderId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกโฟลเดอร์ก่อนอัปโหลด (สร้างโฟลเดอร์ได้ที่แท็บคลังโฟลเดอร์)', 'warning');
@@ -409,7 +420,7 @@ async function handleFormSubmit(e) {
     const url = document.getElementById('docLinkUrl').value;
     Swal.fire({ title: 'กำลังอัปโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    const formUrl = API_URL + `?action=uploadDocumentByLink&docTitle=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}&folderId=${encodeURIComponent(folderId)}&uploader=${encodeURIComponent(uploader)}&docType=${encodeURIComponent(docType)}`;
+    const formUrl = API_URL + `?action=uploadDocumentByLink&docTitle=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}&category=${encodeURIComponent(cat)}&folderId=${encodeURIComponent(folderId)}&uploader=${encodeURIComponent(uploader)}&docType=${encodeURIComponent(docType)}`;
     fetch(formUrl).then(() => {
       Swal.fire('สำเร็จ!', 'เพิ่มเอกสารจากลิงก์เรียบร้อย', 'success');
       document.getElementById('uploadForm').reset();
@@ -432,7 +443,7 @@ async function handleFormSubmit(e) {
       const payload = {
         action: 'uploadFileToDrive',
         base64Data: base64, filename: file.name, mimeType: file.type,
-        folderId: folderId, uploader: uploader, docTitle: title, docType: docType
+        category: cat, folderId: folderId, uploader: uploader, docTitle: title, docType: docType
       };
 
       await fetch(API_URL, {
