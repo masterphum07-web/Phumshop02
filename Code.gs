@@ -367,14 +367,28 @@ function logActivity(detail) {
 // ------------------------------------------------------------------
 function setupSheet() {
   let ss = null;
+  let idNote = '';
   try {
     if (SPREADSHEET_ID && SPREADSHEET_ID.indexOf('ใส่-') === -1) {
       ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     }
-  } catch(e) { /* ยังไม่ได้ใส่ ID จริง ใช้ตัวที่ script ผูกอยู่แทน */ }
+  } catch(e) {
+    // ID ที่ใส่ไปเปิดไม่ได้ (อาจเป็น ID โฟลเดอร์ Drive หรือชีตของบัญชีอื่น) — เตือนแล้วใช้ชีตที่ script ผูกอยู่แทน
+    idNote = ' ⚠️ เปิด SPREADSHEET_ID ที่ใส่ไว้ไม่ได้ (' + e.toString() + ') จึงใช้ชีตที่สคริปต์ผูกอยู่แทน — ถ้าชีตที่สร้างให้ไม่ใช่ตัวนี้ กรุณาตรวจสอบ ID อีกครั้ง';
+    ss = null;
+  }
   if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) return { success: false, message: 'หาสเปรดชีตไม่ได้ — กรุณารันจาก Apps Script ที่เปิดจากชีตโดยตรง หรือใส่ SPREADSHEET_ID ก่อน' };
+  if (!ss) return { success: false, message: 'หาสเปรดชีตไม่ได้ — กรุณาเปิด Apps Script ผ่านเมนู Extensions ในตัวชีต (ไม่ใช่สร้างแยกที่ script.google.com) หรือใส่ SPREADSHEET_ID ให้ถูกต้องก่อน' };
 
+  try {
+    setupAllSheets(ss);
+    return { success: true, message: 'ติดตั้งครบแล้ว! สร้างชีตทั้ง 7 แท็บ + บัญชี admin/1234 (โปรดเปลี่ยนรหัสทันที)' + idNote };
+  } catch(e) {
+    return { success: false, message: 'ติดตั้งไม่สำเร็จ: ' + e.toString() + ' — ถ้าเป็นเรื่องสิทธิ์ ให้ไปลบการเข้าถึงที่ myaccount.google.com/connections แล้วกด Run ใหม่ เพื่อขอสิทธิ์ใหม่อีกครั้ง' };
+  }
+}
+
+function setupAllSheets(ss) {
   const HEADER_BG = "#eef2ff";
 
   // 1) Database — คลังเอกสาร (9 คอลัมน์ ห้ามสลับลำดับ)
@@ -439,6 +453,4 @@ function setupSheet() {
   // ลบแท็บ Sheet1 เปล่าที่ Google สร้างมาให้ตอนแรก
   const sheet1 = ss.getSheetByName("Sheet1");
   if (sheet1 && sheet1.getLastRow() === 0) { try { ss.deleteSheet(sheet1); } catch(e) {} }
-
-  return { success: true, message: 'ติดตั้งครบแล้ว! สร้างชีตทั้ง 7 แท็บ + บัญชี admin/1234 (โปรดเปลี่ยนรหัสทันที)' };
 }
