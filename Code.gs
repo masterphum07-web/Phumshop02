@@ -87,6 +87,8 @@ function handleRequest(data) {
     return setFolderShare(data.folderId, data.enabled, data.username);
   } else if (action === 'getFolderByToken') {
     return getFolderByToken(data.token);
+  } else if (action === 'syncFromDrive') {
+    return syncFromDrive(data.username);
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -199,7 +201,7 @@ function getInitialData() {
       primary_color: settings.primaryColor, accent_color: settings.accentColor,
       background_color: settings.backgroundColor, banner_button_text: settings.bannerButtonText,
       show_banner: settings.showBanner, site_icon: settings.siteIcon
-    }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders };
+    }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
   }
@@ -561,6 +563,80 @@ function getFolderByToken(token) {
     const subfolders = (childrenOf[String(target[0])] || []).map(function(id) { return { name: idToName[id] || id }; });
 
     return { success: true, folder: { name: String(target[1]) }, path: path, subfolders: subfolders, documents: documents };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ------------------------------------------------------------------
+// 🔄 นำเข้าจาก Drive: สแกนโครงสร้างโฟลเดอร์ใน Drive หลัก
+//    สร้างโฟลเดอร์ในระบบให้ตรงโครง + ลงทะเบียนไฟล์ที่ยังไม่มีอัตโนมัติ
+//    (ไฟล์ที่ลงทะเบียนแล้วจะข้าม ทำซ้ำได้ปลอดภัย)
+// ------------------------------------------------------------------
+function syncFromDrive(username) {
+  try {
+    const ss = getSS();
+    const folderSheet = ss.getSheetByName("Folders");
+    const docSheet = ss.getSheetByName(SHEET_NAME);
+    if(!folderSheet || !docSheet) return { success: false, message: "ยังไม่พบชีต Folders/Database — กรุณารัน setupSheet ก่อน" };
+
+    const root = DriveApp.getFolderById(FOLDER_ID);
+    let createdFolders = 0, createdDocs = 0, skipped = 0;
+    const MAX_ITEMS = 400; // กันเกินเวลา 6 นาทีของ Apps Script ต่อรอบ
+
+    // URL ของไฟล์ที่ลงทะเบียนแล้ว (คอลัมน์ F)
+    const existingUrls = {};
+    const dData = docSheet.getDataRange().getDisplayValues();
+    for(let i=1; i<dData.length; i++) { if(dData[i][5]) existingUrls[String(dData[i][5])] = true; }
+
+    function registerFile(file, systemFolderId, folderPath) {
+      if(file.getName().indexOf("FC_") === 0) return; // ข้ามรูปแฟลชการ์ด
+      if(existingUrls[file.getUrl()]) { skipped++; return; }
+      const cleanName = file.getName().replace(/\.[^.]+$/, "");
+      docSheet.appendRow([new Date(), "-", cleanName, "Sync จาก Drive", username || "system", file.getUrl(), folderPath || "ทั่วไป", file.getName(), "ทั่วไป", systemFolderId || ""]);
+      existingUrls[file.getUrl()] = true;
+      createdDocs++;
+    }
+
+    // หา/สร้างโฟลเดอร์ระบบให้ตรงกับโครง Drive (จับคู่ด้วย ชื่อ + โฟลเดอร์แม่)
+    function ensureSystemFolder(name, parentSystemId) {
+      const data = folderSheet.getDataRange().getDisplayValues();
+      for(let i=1; i<data.length; i++) {
+        if(String(data[i][1]).trim() === name.trim() && String(data[i][2] || "") === String(parentSystemId || "")) {
+          return String(data[i][0]);
+        }
+      }
+      const newId = "FLD_" + Utilities.getUuid().substring(0,8);
+      folderSheet.appendRow([newId, name.trim(), parentSystemId || "", "", "FALSE", username || "system"]);
+      createdFolders++;
+      return newId;
+    }
+
+    // ไฟล์ที่กองอยู่ระดับบนสุด (ยังไม่ได้จัดโฟลเดอร์)
+    const rootFiles = root.getFiles();
+    while(rootFiles.hasNext() && createdDocs + skipped < MAX_ITEMS) {
+      registerFile(rootFiles.next(), "", "");
+    }
+
+    // เดินลงไปในโฟลเดอร์ย่อยทุกชั้น
+    const stack = [{ drive: root, systemId: "" }];
+    while(stack.length > 0 && createdDocs + skipped < MAX_ITEMS) {
+      const node = stack.pop();
+      const subFolders = node.drive.getFolders();
+      while(subFolders.hasNext() && createdDocs + skipped < MAX_ITEMS) {
+        const df = subFolders.next();
+        const sysId = ensureSystemFolder(df.getName(), node.systemId);
+        const sysPath = getFolderPath(ss, sysId);
+        const files = df.getFiles();
+        while(files.hasNext() && createdDocs + skipped < MAX_ITEMS) {
+          registerFile(files.next(), sysId, sysPath);
+        }
+        stack.push({ drive: df, systemId: sysId });
+      }
+    }
+
+    let message = `นำเข้าสำเร็จ: สร้างโฟลเดอร์ ${createdFolders} อัน, ลงทะเบียนไฟล์ใหม่ ${createdDocs} ไฟล์` + (skipped > 0 ? ` (ข้ามของเดิม ${skipped})` : "");
+    if(createdDocs + skipped >= MAX_ITEMS) message += ` — ถึงขีดจำกัด ${MAX_ITEMS} รายการต่อรอบ ถ้ายังมีเหลือให้กด Sync อีกครั้ง`;
+    logActivity(`${username || "ผู้ใช้"} Sync จาก Drive: +${createdFolders} โฟลเดอร์, +${createdDocs} ไฟล์`);
+    return { success: true, message: message, createdFolders: createdFolders, createdDocs: createdDocs, skipped: skipped };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 

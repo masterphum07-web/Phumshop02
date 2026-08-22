@@ -74,3 +74,55 @@ html, body {
 .flashcard-back {
   transform: rotateY(180deg);
 }
+
+/* ===== UI Polish ===== */
+
+/* การ์ดลอยขึ้นนุ่มๆ ตอนชี้ */
+.bg-white.rounded-2xl, .bg-white.rounded-3xl {
+  transition: box-shadow .3s ease, transform .3s ease, border-color .3s ease;
+}
+.bg-white.rounded-2xl:hover {
+  box-shadow: 0 18px 40px -14px rgba(15, 23, 42, .12);
+}
+
+/* แถวตารางเรืองแสงอ่อนๆ */
+#folderDocTableBody tr:hover, #docTableBody tr:hover, #studyDocTableBody tr:hover {
+  background: linear-gradient(90deg, #f0fdf9, #eef4ff);
+}
+
+/* ปุ่มไล่เฉดเงาสี ตอน hover */
+button[class*="bg-gradient-to-r"]:not(:disabled) {
+  box-shadow: 0 10px 24px -10px rgba(37, 99, 235, .45);
+}
+button[class*="from-emerald-600"]:not(:disabled) {
+  box-shadow: 0 10px 24px -10px rgba(5, 150, 105, .5);
+}
+button[class*="from-fuchsia-600"]:not(:disabled), button[class*="from-pink-500"]:not(:disabled) {
+  box-shadow: 0 10px 24px -10px rgba(192, 38, 211, .5);
+}
+
+/* ตัวเลขสถิติแดชบอร์ดเด้งเข้า */
+#tabDashboard [id^="statTotal"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+
+/* โมดัลเปิดแล้วเนื้อหาเด้งขึ้นนุ่มๆ */
+#loginModal:not(.hidden) #loginModalContent,
+#flashcardModal:not(.hidden) #fcModalContent,
+#iframeModal:not(.hidden) #iframeModalContent {
+  animation: modalPop .35s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes modalPop {
+  from { transform: scale(.92) translateY(12px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ไอคอนเฟืองหมุนช้าๆ ตอน hover */
+.fa-gear { transition: transform .5s ease; }
+button:hover .fa-gear { transform: rotate(90deg); }
+
+/* ช่องค้นหาเรืองแสงตอนพิมพ์ */
+#searchInput:focus {
+  box-shadow: 0 0 0 4px rgba(99,102,241,.14), 0 8px 20px -6px rgba(15,23,42,.15);
+}

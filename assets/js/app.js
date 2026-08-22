@@ -59,6 +59,8 @@ function applyInitialData(res) {
   appState.tasks = [...(res.tasks || [])].reverse();
   appState.flashcards = [...(res.flashcards || [])].reverse();
   appState.folders = res.folders || [];
+  const driveLink = document.getElementById('openDriveLink');
+  if(driveLink && res.driveFolderUrl) driveLink.href = res.driveFolderUrl;
   const settings = res.settings || {};
   document.getElementById('bannerTitle').innerText = settings.header_title || 'DOC HUB';
   document.getElementById('navTitle').innerText = settings.header_title || 'DOC HUB';
@@ -1104,4 +1106,40 @@ function copyShareLink() {
   const done = () => Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์แล้ว', text: 'ส่งลิงก์นี้ให้เพื่อนได้เลย', timer: 1600, showConfirmButton: false });
   if(navigator.clipboard) navigator.clipboard.writeText(input.value).then(done).catch(() => { document.execCommand('copy'); done(); });
   else { document.execCommand('copy'); done(); }
+}
+
+// ---------------------------------------------------
+// Drive Sync (นำเข้าไฟล์จาก Drive)
+// ---------------------------------------------------
+function openSyncModal() {
+  document.getElementById('syncModal').classList.remove('hidden');
+}
+
+function closeSyncModal() {
+  document.getElementById('syncModal').classList.add('hidden');
+}
+
+function startDriveSync() {
+  const btn = document.getElementById('syncStartBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังสแกน Drive...';
+
+  fetchWithTimeout(API_URL + `?action=syncFromDrive&username=${encodeURIComponent(appState.username || 'guest')}`, 180000)
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.innerHTML = 'เริ่มนำเข้า <i class="fa-solid fa-bolt ml-1"></i>';
+      closeSyncModal();
+      if(res.success) {
+        Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', text: res.message, confirmButtonColor: '#059669' });
+      } else {
+        Swal.fire('ไม่สำเร็จ', res.message, 'warning');
+      }
+      refreshData(true);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = 'เริ่มนำเข้า <i class="fa-solid fa-bolt ml-1"></i>';
+      Swal.fire('ใช้เวลานานเกินไป', 'ลองกดอีกครั้ง — ถ้าไฟล์เยอะมากระบบอาจทำงานเบื้องหลังจนเสร็จก่อน รอสักครู่แล้วรีเฟรชดู', 'info');
+    });
 }

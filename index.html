@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DOC HUB - ระบบคลังเอกสาร</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -11,7 +12,32 @@
     <style>
       :root { --ui-primary: #2563eb; --ui-accent: #9333ea; }
       * { scrollbar-width: thin; scrollbar-color: #a5b4fc #eef2ff; }
-      body { transition: background-color .35s ease, color .35s ease; }
+      body {
+        transition: background-color .35s ease, color .35s ease;
+        background-image:
+          radial-gradient(1100px 520px at 88% -8%, rgba(99,102,241,.08), transparent 62%),
+          radial-gradient(900px 480px at -8% 108%, rgba(16,185,129,.08), transparent 62%);
+        background-attachment: fixed;
+      }
+      #bannerTitle {
+        background: linear-gradient(120deg, #1e293b 0%, #3730a3 38%, #7c3aed 62%, #0e7490 84%, #1e293b 100%);
+        background-size: 220% auto;
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+        animation: bannerShine 7s linear infinite;
+      }
+      @keyframes bannerShine { to { background-position: 220% center; } }
+      nav button { position: relative; }
+      nav button::after {
+        content: ''; position: absolute; left: 12%; right: 12%; bottom: 2px; height: 2px; border-radius: 2px;
+        background: linear-gradient(90deg, var(--ui-primary), var(--ui-accent));
+        transform: scaleX(0); transform-origin: center; transition: transform .25s ease;
+      }
+      nav button:hover:not(:disabled)::after { transform: scaleX(.7); }
+      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid #6366f1; outline-offset: 2px;
+      }
+      ::selection { background: #c7d2fe; color: #1e1b4b; }
       button, a, select, input, textarea { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease; }
       button:hover:not(:disabled), a:hover { transform: translateY(-2px); }
       button:active:not(:disabled), a:active { transform: translateY(0) scale(.98); }
@@ -236,7 +262,11 @@
         <!-- Breadcrumb + ปุ่มจัดการ -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center justify-between gap-3 flex-wrap">
           <div id="folderBreadcrumb" class="flex items-center gap-2 text-sm font-bold text-slate-600 flex-wrap min-h-[32px]"></div>
-          <button onclick="openFolderManager()" class="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md hover:bg-slate-700 transition shrink-0"><i class="fa-solid fa-folder-plus mr-1"></i> จัดการโฟลเดอร์</button>
+          <div class="flex gap-2 shrink-0">
+            <a id="openDriveLink" href="https://drive.google.com/drive/folders/1Gp3zOM9_zEvAae8uExF5jdC-l_ePzxd6" target="_blank" rel="noopener" class="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl shadow-sm hover:bg-slate-50 hover:border-emerald-300 transition"><i class="fa-brands fa-google-drive mr-1.5 text-emerald-500"></i>เปิดโฟลเดอร์ Drive</a>
+            <button onclick="openSyncModal()" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-500/25 hover:-translate-y-0.5 transition"><i class="fa-solid fa-rotate mr-1.5"></i>นำเข้าจาก Drive</button>
+            <button onclick="openFolderManager()" class="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md hover:bg-slate-700 transition"><i class="fa-solid fa-folder-plus mr-1"></i> จัดการโฟลเดอร์</button>
+          </div>
         </div>
 
         <!-- การ์ดโฟลเดอร์ -->
@@ -671,6 +701,38 @@
         </div>
         <p class="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">โฟลเดอร์ทั้งหมดในระบบ</p>
         <div id="folderManagerList" class="max-h-72 overflow-y-auto space-y-2 pr-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drive Sync Modal -->
+  <div id="syncModal" class="fixed inset-0 z-[65] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden transform transition-all">
+      <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-teal-50 flex justify-between items-center">
+        <h3 class="font-bold text-slate-800"><i class="fa-brands fa-google-drive text-emerald-500 mr-2"></i>นำเข้าไฟล์จาก Drive</h3>
+        <button onclick="closeSyncModal()" class="w-8 h-8 flex justify-center items-center rounded-xl hover:bg-white/60 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-5">
+        <div class="space-y-3">
+          <div class="flex gap-3 items-start">
+            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md shadow-emerald-500/30">1</div>
+            <div>
+              <p class="text-sm font-bold text-slate-700">เปิดโฟลเดอร์ Drive ของระบบ</p>
+              <p class="text-xs text-slate-500 mt-0.5">ลากทั้งโฟลเดอร์ (เช่น ปี 1 ที่ export จาก GoodNotes) โยนเข้าไปใน Drive ได้เลย ซ้อนกี่ชั้นก็ได้</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start">
+            <div class="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md shadow-teal-500/30">2</div>
+            <div>
+              <p class="text-sm font-bold text-slate-700">กดปุ่ม "เริ่มนำเข้า" ด้านล่าง</p>
+              <p class="text-xs text-slate-500 mt-0.5">ระบบจะสร้างโฟลเดอร์ให้ตรงโครง Drive และลงทะเบียนไฟล์ให้อัตโนมัติ (ไฟล์ที่มีแล้วจะข้าม กดซ้ำได้ปลอดภัย)</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <a href="https://drive.google.com/drive/folders/1Gp3zOM9_zEvAae8uExF5jdC-l_ePzxd6" target="_blank" rel="noopener" class="flex-1 py-3 bg-white border-2 border-emerald-500 text-emerald-600 font-bold rounded-xl text-sm hover:bg-emerald-50 transition text-center"><i class="fa-brands fa-google-drive mr-1.5"></i>เปิด Drive</a>
+          <button onclick="startDriveSync()" id="syncStartBtn" class="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition text-sm">เริ่มนำเข้า <i class="fa-solid fa-bolt ml-1"></i></button>
+        </div>
       </div>
     </div>
   </div>
