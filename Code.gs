@@ -1,10 +1,20 @@
 // ============================================================
-// ⚠️  FOLDER_ID ใส่ของใหม่ให้แล้ว ✅
-// เหลือ SPREADSHEET_ID = ID ของ Google Sheet ใหม่ (ดูได้จาก URL ของชีต)
-// ดูวิธีหา ID ได้ใน README.md
+// ✅ พร้อมใช้งานทันที — ไม่ต้องแก้ไขอะไรในไฟล์นี้อีกแล้ว!
+// วิธีใช้: สร้าง Google Sheet ใหม่ → เมนู Extensions → Apps Script
+//          → วางโค้ดทั้งไฟล์นี้ → รัน setupSheet 1 ครั้ง → Deploy
+// SPREADSHEET_ID เว้นว่าง = ใช้ชีตที่สคริปต์ผูกอยู่โดยอัตโนมัติ
+// (ใส่เฉพาะเมื่ออยากให้ชี้ไปชีตคนละตัวกับที่สคริปต์ผูกอยู่)
 // ============================================================
-const SPREADSHEET_ID = 'ใส่-ID-Google-Sheet-ใหม่-ตรงนี้';
+const SPREADSHEET_ID = '';
 const FOLDER_ID = "1Gp3zOM9_zEvAae8uExF5jdC-l_ePzxd6";
+
+// หาสเปรดชีตอัตโนมัติ: ไม่ใส่ ID ก็ใช้ชีตที่สคริปต์นี้ผูกอยู่
+function getSS() {
+  if (SPREADSHEET_ID) {
+    try { return SpreadsheetApp.openById(SPREADSHEET_ID); } catch(e) {}
+  }
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
 const SHEET_NAME = "Database"; 
 
 function doGet(e) {
@@ -79,7 +89,7 @@ function handleRequest(data) {
 // ------------------------------------------------------------------
 function getInitialData() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     
     // 1. ดึงข้อมูล Settings
     let settings = {
@@ -176,7 +186,7 @@ function getInitialData() {
 
 function verifyLogin(username, password) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     const userSheet = ss.getSheetByName("Users");
     if(!userSheet) return { success: false, message: "ระบบยังไม่มีชีต Users" };
     const data = userSheet.getDataRange().getDisplayValues();
@@ -192,7 +202,7 @@ function verifyLogin(username, password) {
 
 function addNewCategory(subjectName, username) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Subjects");
     if(!sheet) { sheet = ss.insertSheet("Subjects"); sheet.appendRow(["ID", "Username", "SubjectName", "ExamDate"]); }
     sheet.appendRow(["SUB_" + Utilities.getUuid().substring(0,8), username || "admin", subjectName, ""]);
@@ -203,7 +213,7 @@ function addNewCategory(subjectName, username) {
 
 function deleteCategory(subjectName, username) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     const sheet = ss.getSheetByName("Subjects");
     if (!sheet) return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Sheet Subjects not found" })).setMimeType(ContentService.MimeType.JSON);
     
@@ -233,7 +243,7 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     const file = folder.createFile(blob);
     // บาง Google Workspace ปิดการแชร์สาธารณะไว้ จึงไม่ให้ขั้นตอนนี้ทำให้ข้อมูลไม่ถูกบันทึกลงชีต
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (shareError) { Logger.log(shareError); }
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
     if(!docSheet) throw new Error(`ไม่พบชีต ${SHEET_NAME}`);
     docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), category, filename, docType || "ทั่วไป"]);
@@ -244,7 +254,7 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
 
 function uploadDocumentByLink(docTitle, url, category, uploader, docType) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
     if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, category, "External Link", docType || "ทั่วไป"]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
@@ -254,7 +264,7 @@ function uploadDocumentByLink(docTitle, url, category, uploader, docType) {
 
 function addChecklistTask(username, subject, detail) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Tasks");
     if(!sheet) { sheet = ss.insertSheet("Tasks"); sheet.appendRow(["ID", "Username", "SubjectID", "TaskDetail", "IsDone"]); }
     sheet.appendRow([Utilities.getUuid().substring(0,8), username, subject, detail, "FALSE"]);
@@ -264,7 +274,7 @@ function addChecklistTask(username, subject, detail) {
 
 function toggleChecklistTask(id, currentStatus) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Tasks");
     if(!sheet) return { success: false };
     const data = sheet.getDataRange().getValues();
@@ -288,7 +298,7 @@ function addFlashcardItem(username, subject, question, answer, imageBase64, imag
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       imageUrl = file.getUrl();
     }
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Flashcards");
     if(!sheet) { sheet = ss.insertSheet("Flashcards"); sheet.appendRow(["ID", "Username", "SubjectID", "Question", "Answer", "ImageURL"]); }
     sheet.appendRow(["FLS_" + Utilities.getUuid().substring(0,8), username, subject, question, answer, imageUrl]);
@@ -299,7 +309,7 @@ function addFlashcardItem(username, subject, question, answer, imageBase64, imag
 
 function deleteFlashcard(id, username) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Flashcards");
     if(!sheet) return { success: false, message: "Sheet not found" };
     
@@ -317,7 +327,7 @@ function deleteFlashcard(id, username) {
 
 function updateSettings(settingsData, username) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let sheet = ss.getSheetByName("Settings");
     if(!sheet) {
       sheet = ss.insertSheet("Settings");
@@ -342,7 +352,7 @@ function updateSettings(settingsData, username) {
 
 function getSystemLogs() {
   try {
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Logs");
+    const sheet = getSS().getSheetByName("Logs");
     if(!sheet) return [];
     const data = sheet.getDataRange().getDisplayValues();
     let logs = [];
@@ -353,7 +363,7 @@ function getSystemLogs() {
 
 function logActivity(detail) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSS();
     let logSheet = ss.getSheetByName("Logs");
     if(!logSheet) { logSheet = ss.insertSheet("Logs"); logSheet.appendRow(["เวลา", "รายละเอียด"]); }
     logSheet.appendRow([Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss"), detail]);
@@ -366,23 +376,12 @@ function logActivity(detail) {
 //          วางโค้ดนี้ทั้งไฟล์ → เลือกฟังก์ชัน setupSheet → กด Run
 // ------------------------------------------------------------------
 function setupSheet() {
-  let ss = null;
-  let idNote = '';
-  try {
-    if (SPREADSHEET_ID && SPREADSHEET_ID.indexOf('ใส่-') === -1) {
-      ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    }
-  } catch(e) {
-    // ID ที่ใส่ไปเปิดไม่ได้ (อาจเป็น ID โฟลเดอร์ Drive หรือชีตของบัญชีอื่น) — เตือนแล้วใช้ชีตที่ script ผูกอยู่แทน
-    idNote = ' ⚠️ เปิด SPREADSHEET_ID ที่ใส่ไว้ไม่ได้ (' + e.toString() + ') จึงใช้ชีตที่สคริปต์ผูกอยู่แทน — ถ้าชีตที่สร้างให้ไม่ใช่ตัวนี้ กรุณาตรวจสอบ ID อีกครั้ง';
-    ss = null;
-  }
-  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) return { success: false, message: 'หาสเปรดชีตไม่ได้ — กรุณาเปิด Apps Script ผ่านเมนู Extensions ในตัวชีต (ไม่ใช่สร้างแยกที่ script.google.com) หรือใส่ SPREADSHEET_ID ให้ถูกต้องก่อน' };
+  const ss = getSS();
+  if (!ss) return { success: false, message: 'หาสเปรดชีตไม่ได้ — กรุณาเปิด Apps Script ผ่านเมนู Extensions ในตัวชีต (ไม่ใช่สร้างแยกที่ script.google.com)' };
 
   try {
     setupAllSheets(ss);
-    return { success: true, message: 'ติดตั้งครบแล้ว! สร้างชีตทั้ง 7 แท็บ + บัญชี admin/1234 (โปรดเปลี่ยนรหัสทันที)' + idNote };
+    return { success: true, message: 'ติดตั้งครบแล้ว! สร้างชีตทั้ง 7 แท็บ + บัญชี admin/1234 (โปรดเปลี่ยนรหัสทันที)' };
   } catch(e) {
     return { success: false, message: 'ติดตั้งไม่สำเร็จ: ' + e.toString() + ' — ถ้าเป็นเรื่องสิทธิ์ ให้ไปลบการเข้าถึงที่ myaccount.google.com/connections แล้วกด Run ใหม่ เพื่อขอสิทธิ์ใหม่อีกครั้ง' };
   }
