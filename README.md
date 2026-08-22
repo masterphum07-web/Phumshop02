@@ -12,27 +12,26 @@
 | `assets/css/style.css` | สไตล์เสริม |
 | `Code.gs` | Backend ฝั่ง Google Apps Script |
 
-## ⚙️ ขั้นตอนตั้งค่าใหม่ (ทำครั้งเดียว)
+## ⚙️ ขั้นตอนตั้งค่าใหม่ (ทำครั้งเดียว ง่ายมาก)
 
-### 1. สร้าง Google Sheet ใหม่
-- สร้าง Google Sheet ใหม่ → ตั้งชื่อตามต้องการ
+### 1. สร้าง Google Sheet เปล่าไว้ 1 ไฟล์
+- สร้าง Google Sheet ใหม่ → ตั้งชื่อตามต้องการ (**ยังไม่ต้องทำคอลัมน์อะไรเลย!**)
 - คัดลอก **ID ของชีต** จาก URL:
   `https://docs.google.com/spreadsheets/d/`**`ชีตIDตรงนี้`**`/edit`
-- สร้างชีตย่อย (tab) ชื่อ: `Database`, `Users`, `Settings`, `Subjects`, `Tasks`, `Flashcards`, `Logs`
-- ใส่ข้อมูล Users อย่างน้อย 1 แถว: คอลัมน์ A = ชื่อผู้ใช้, B = รหัสผ่าน, C = admin
 
-### 2. สร้างโฟลเดอร์ Google Drive ใหม่ ✅ (ทำแล้ว ใส่ ID ให้เรียบร้อย)
+### 2. โฟลเดอร์ Google Drive ✅ (ทำแล้ว ใส่ ID ให้เรียบร้อย)
 - โฟลเดอร์ใหม่: `1Gp3zOM9_zEvAae8uExF5jdC-l_ePzxd6`
 
-### 3. แก้ไข `Code.gs` (บรรทัดบนสุด)
-```js
-const SPREADSHEET_ID = 'ใส่-ID-Google-Sheet-ใหม่-ตรงนี้';   // ⬅️ เหลือตัวนี้ที่ยังไม่ได้ใส่
-const FOLDER_ID = "1Gp3zOM9_zEvAae8uExF5jdC-l_ePzxd6";      // ✅ ใส่แล้ว
-```
+### 3. วางโค้ด + กดติดตั้งอัตโนมัติ
+1. ใน Google Sheet ใหม่ → **Extensions → Apps Script**
+2. ลบโค้ดเดิม → วางไฟล์ `Code.gs` ทั้งหมด
+3. ในแถบด้านบนเลือกฟังก์ชัน **`setupSheet`** → กด **Run** ▶️
+   - ครั้งแรก Google จะขอสิทธิ์ → กด Review permissions → เลือกบัญชี → Allow
+   - ✅ ระบบสร้างชีตทั้ง 7 แท็บ + หัวคอลัมน์ + บัญชี `admin / 1234` ให้เอง
+4. กลับมาที่โค้ด ใส่ **ID ของชีต** (จากขั้นตอนที่ 1) แทนที่ `ใส่-ID-Google-Sheet-ใหม่-ตรงนี้`
+5. ⚠️ **เปลี่ยนรหัสผ่าน admin** ในแท็บ `Users` ของชีตทันที!
 
 ### 4. Deploy Apps Script ตัวใหม่
-- เปิด Google Sheet ใหม่ → Extensions → Apps Script
-- วางโค้ด `Code.gs` ลงไป
 - Deploy → New deployment → ประเภท **Web app**
   - Execute as: **Me**
   - Who has access: **Anyone**

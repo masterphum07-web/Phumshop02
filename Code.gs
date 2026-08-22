@@ -67,6 +67,8 @@ function handleRequest(data) {
     return getSystemLogs();
   } else if (action === 'updateSettings') {
     return updateSettings(data.settings, data.username);
+  } else if (action === 'setupSheet') {
+    return setupSheet();
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -356,4 +358,87 @@ function logActivity(detail) {
     if(!logSheet) { logSheet = ss.insertSheet("Logs"); logSheet.appendRow(["เวลา", "รายละเอียด"]); }
     logSheet.appendRow([Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss"), detail]);
   } catch(e) {}
+}
+
+// ------------------------------------------------------------------
+// 🚀 ตัวช่วยติดตั้งระบบอัตโนมัติ — รันครั้งเดียว สร้างทุกอย่างให้ครบ
+// วิธีใช้: เปิด Google Sheet ใหม่ → Extensions → Apps Script →
+//          วางโค้ดนี้ทั้งไฟล์ → เลือกฟังก์ชัน setupSheet → กด Run
+// ------------------------------------------------------------------
+function setupSheet() {
+  let ss = null;
+  try {
+    if (SPREADSHEET_ID && SPREADSHEET_ID.indexOf('ใส่-') === -1) {
+      ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    }
+  } catch(e) { /* ยังไม่ได้ใส่ ID จริง ใช้ตัวที่ script ผูกอยู่แทน */ }
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return { success: false, message: 'หาสเปรดชีตไม่ได้ — กรุณารันจาก Apps Script ที่เปิดจากชีตโดยตรง หรือใส่ SPREADSHEET_ID ก่อน' };
+
+  const HEADER_BG = "#eef2ff";
+
+  // 1) Database — คลังเอกสาร (9 คอลัมน์ ห้ามสลับลำดับ)
+  let db = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+  if (db.getLastRow() === 0) {
+    db.appendRow(["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา"]);
+    db.getRange(1, 1, 1, 9).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 2) Users — บัญชีเข้าสู่ระบบ (⚠️ อย่าลืมเปลี่ยนรหัสผ่าน admin หลังติดตั้ง!)
+  let users = ss.getSheetByName("Users") || ss.insertSheet("Users");
+  if (users.getLastRow() === 0) {
+    users.appendRow(["Username", "Password", "Role"]);
+    users.appendRow(["admin", "1234", "admin"]);
+    users.getRange(1, 1, 1, 3).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 3) Subjects — หมวดหมู่วิชา
+  let subj = ss.getSheetByName("Subjects") || ss.insertSheet("Subjects");
+  if (subj.getLastRow() === 0) {
+    subj.appendRow(["ID", "Username", "SubjectName", "ExamDate"]);
+    subj.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 4) Tasks — สิ่งที่ต้องทำ
+  let tasks = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
+  if (tasks.getLastRow() === 0) {
+    tasks.appendRow(["ID", "Username", "SubjectID", "TaskDetail", "IsDone"]);
+    tasks.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 5) Flashcards — แฟลชการ์ด
+  let fc = ss.getSheetByName("Flashcards") || ss.insertSheet("Flashcards");
+  if (fc.getLastRow() === 0) {
+    fc.appendRow(["ID", "Username", "SubjectID", "Question", "Answer", "ImageURL"]);
+    fc.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 6) Settings — ตั้งค่าหน้าเว็บ
+  let sett = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
+  if (sett.getLastRow() === 0) {
+    sett.appendRow(["Key", "Value"]);
+    sett.appendRow(["bannerTitle", "PHUMSHOP 02"]);
+    sett.appendRow(["bannerSubtitle", "ระบบคลังเอกสารฉบับใหม่"]);
+    sett.appendRow(["primaryColor", "#2563eb"]);
+    sett.appendRow(["accentColor", "#9333ea"]);
+    sett.appendRow(["backgroundColor", "#f8fafc"]);
+    sett.appendRow(["bannerButtonText", "เริ่มต้นใช้งาน"]);
+    sett.appendRow(["showBanner", "true"]);
+    sett.appendRow(["siteIcon", "fa-layer-group"]);
+    sett.getRange(1, 1, 1, 2).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 7) Logs — ประวัติการใช้งาน
+  let logs = ss.getSheetByName("Logs") || ss.insertSheet("Logs");
+  if (logs.getLastRow() === 0) {
+    logs.appendRow(["เวลา", "รายละเอียด"]);
+    logs.getRange(1, 1, 1, 2).setFontWeight("bold").setBackground(HEADER_BG);
+    logs.appendRow([Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss"), "ติดตั้งระบบครั้งแรกโดย setupSheet"]);
+  }
+
+  // ลบแท็บ Sheet1 เปล่าที่ Google สร้างมาให้ตอนแรก
+  const sheet1 = ss.getSheetByName("Sheet1");
+  if (sheet1 && sheet1.getLastRow() === 0) { try { ss.deleteSheet(sheet1); } catch(e) {} }
+
+  return { success: true, message: 'ติดตั้งครบแล้ว! สร้างชีตทั้ง 7 แท็บ + บัญชี admin/1234 (โปรดเปลี่ยนรหัสทันที)' };
 }
