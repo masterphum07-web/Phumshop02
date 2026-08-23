@@ -57,6 +57,8 @@ function handleRequest(data) {
     return getInitialData();
   } else if (action === 'verifyLogin') {
     return verifyLogin(data.username, data.password);
+  } else if (action === 'registerUser') {
+    return registerUser(data.username, data.password);
   } else if (action === 'addNewCategory') {
     return addNewCategory(data.subjectName, data.username);
   } else if (action === 'deleteCategory') {
@@ -241,6 +243,29 @@ function verifyLogin(username, password) {
        }
     }
     return { success: false, message: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// สมัครสมาชิกใหม่ (สิทธิ์ 'user' — ใช้ To-Do/แฟลชการ์ดส่วนตัวได้ ไม่เห็นแดชบอร์ด)
+function registerUser(username, password) {
+  try {
+    username = String(username || '').trim();
+    password = String(password || '');
+    if(username.length < 3) return { success: false, message: "ชื่อผู้ใช้ต้องยาวอย่างน้อย 3 ตัวอักษร" };
+    if(username.length > 30) return { success: false, message: "ชื่อผู้ใช้ยาวเกินไป (สูงสุด 30 ตัวอักษร)" };
+    if(password.length < 4) return { success: false, message: "รหัสผ่านต้องยาวอย่างน้อย 4 ตัวอักษร" };
+    const ss = getSS();
+    let sheet = ss.getSheetByName("Users");
+    if(!sheet) { sheet = ss.insertSheet("Users"); sheet.appendRow(["Username", "Password", "Role"]); }
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]).toLowerCase() === username.toLowerCase()) {
+        return { success: false, message: "มีชื่อผู้ใช้นี้ในระบบแล้ว ลองใช้ชื่ออื่น" };
+      }
+    }
+    sheet.appendRow([username, password, "user"]);
+    logActivity(`สมาชิกใหม่สมัครเข้าใช้งาน: ${username}`);
+    return { success: true, username: username, role: "user" };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 

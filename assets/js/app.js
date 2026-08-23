@@ -787,12 +787,13 @@ function switchTab(tabId) {
 // ---------------------------------------------------
 function toggleAdminView() {
   if(appState.username) {
-    appState.username = ''; 
+    appState.username = '';
     appState.role = '';
-    document.getElementById('adminBtnText').innerText = 'เข้าสู่ระบบ'; 
-    document.getElementById('userNameDisplay').innerText = 'ผู้ใช้งานทั่วไป'; 
+    document.getElementById('adminBtnText').innerText = 'เข้าสู่ระบบ';
+    document.getElementById('userNameDisplay').innerText = 'ผู้ใช้งานทั่วไป';
     document.getElementById('btnTabDashboard').classList.add('hidden');
-    document.getElementById('btnTabDashboardMobile').classList.add('hidden');
+    const bd = document.getElementById('bnavDashboard');
+    if(bd) { bd.classList.add('hidden'); bd.classList.remove('flex'); }
     if(appState.currentTab === 'tabDashboard') switchTab('tabMain');
     refreshData();
   } else {
@@ -810,35 +811,83 @@ function closeLoginModal() {
     document.getElementById('loginModal').classList.add('hidden');
     document.getElementById('loginUsername').value = '';
     document.getElementById('loginPassword').value = '';
+    const p2 = document.getElementById('loginPassword2');
+    if(p2) p2.value = '';
+    showLoginForm();
   }, 300);
+}
+
+function showRegisterForm() {
+  window._loginMode = 'register';
+  document.getElementById('loginModalTitle').innerText = 'สมัครสมาชิกใหม่';
+  document.getElementById('loginModalSubtitle').innerText = 'สร้างบัญชีของคุณเอง — To-Do และความคืบหน้าจะเป็นของคุณ';
+  document.getElementById('confirmPassGroup').classList.remove('hidden');
+  document.getElementById('loginSubmitBtn').innerHTML = 'สมัครสมาชิก <i class="fa-solid fa-user-plus"></i>';
+  document.getElementById('switchToRegister').classList.add('hidden');
+  document.getElementById('switchToLogin').classList.remove('hidden');
+}
+
+function showLoginForm() {
+  window._loginMode = 'login';
+  document.getElementById('loginModalTitle').innerText = 'เข้าสู่ระบบจัดการ';
+  document.getElementById('loginModalSubtitle').innerText = 'เฉพาะผู้ดูแลระบบหรือผู้ใช้ที่ได้รับอนุญาต';
+  document.getElementById('confirmPassGroup').classList.add('hidden');
+  document.getElementById('loginSubmitBtn').innerHTML = 'เข้าสู่ระบบ <i class="fa-solid fa-arrow-right-to-bracket"></i>';
+  document.getElementById('switchToRegister').classList.remove('hidden');
+  document.getElementById('switchToLogin').classList.add('hidden');
+}
+
+function applyLoginSuccess(res) {
+  closeLoginModal();
+  appState.username = res.username;
+  appState.role = res.role;
+  document.getElementById('adminBtnText').innerText = 'ออกระบบ';
+  document.getElementById('userNameDisplay').innerText = res.username;
+
+  if(res.role === 'admin') {
+    document.getElementById('btnTabDashboard').classList.remove('hidden');
+    const bd = document.getElementById('bnavDashboard');
+    if(bd) bd.classList.remove('hidden');
+    bd && bd.classList.add('flex');
+  }
+
+  Swal.fire({ icon: 'success', title: 'ยินดีต้อนรับ!', text: `สวัสดีคุณ ${res.username}`, timer: 1600, showConfirmButton: false });
+  refreshData(true);
 }
 
 function submitLogin() {
   const u = document.getElementById('loginUsername').value;
   const p = document.getElementById('loginPassword').value;
   if(!u || !p) return;
-  
+
   const btn = document.getElementById('loginSubmitBtn');
+
+  if(window._loginMode === 'register') {
+    const p2 = document.getElementById('loginPassword2').value;
+    if(p !== p2) return Swal.fire('รหัสไม่ตรงกัน', 'กรอกรหัสผ่านยืนยันให้เหมือนกัน', 'warning');
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    fetchWithTimeout(API_URL + `?action=registerUser&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`, 15000)
+      .then(r => r.json())
+      .then(res => {
+        btn.innerHTML = 'สมัครสมาชิก <i class="fa-solid fa-user-plus"></i>';
+        if(res.success) applyLoginSuccess(res);
+        else Swal.fire('สมัครไม่สำเร็จ', res.message, 'error');
+      }).catch(() => {
+        btn.innerHTML = 'สมัครสมาชิก <i class="fa-solid fa-user-plus"></i>';
+        Swal.fire('เชื่อมต่อไม่ได้', 'ลองอีกครั้ง', 'warning');
+      });
+    return;
+  }
+
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-  
+
   fetchWithTimeout(API_URL + `?action=verifyLogin&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`, 10000)
     .then(r => r.json())
     .then(res => {
       btn.innerHTML = 'เข้าสู่ระบบ <i class="fa-solid fa-arrow-right-to-bracket"></i>';
-      if(res.success) { 
-        closeLoginModal();
-        appState.username = res.username; 
-        appState.role = res.role;
-        document.getElementById('adminBtnText').innerText = 'ออกระบบ'; 
-        document.getElementById('userNameDisplay').innerText = res.username; 
-        
-        if(res.role === 'admin') {
-          document.getElementById('btnTabDashboard').classList.remove('hidden');
-          document.getElementById('btnTabDashboardMobile').classList.remove('hidden');
-        }
-        
-        Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', text: `ยินดีต้อนรับคุณ ${res.username}`, timer: 1500, showConfirmButton: false });
-        refreshData();
+      if(res.success) {
+        applyLoginSuccess(res);
       } else {
         Swal.fire('ข้อมูลไม่ถูกต้อง', res.message, 'error');
       }
