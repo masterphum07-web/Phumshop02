@@ -642,8 +642,9 @@ function row6ToBox(v) { return v ? (Number(String(v).replace(/[^0-9]/g, '')) || 
 function getDocRow(sheet, docId) {
   const m = String(docId || "").match(/^DOC_(\d+)$/);
   if(!m) return -1;
-  const rowNum = Number(m[1]);
-  if(rowNum < 1 || rowNum > sheet.getLastRow()) return -1;
+  // DOC_n ถูกสร้างจาก data[n] ซึ่งคือแถวที่ n+1 ของชีต (แถวแรกคือหัวตาราง)
+  const rowNum = Number(m[1]) + 1;
+  if(rowNum < 2 || rowNum > sheet.getLastRow()) return -1;
   return rowNum;
 }
 
@@ -901,9 +902,9 @@ function setupAllSheets(ss) {
     db.appendRow(["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา", "FolderID"]);
     db.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground(HEADER_BG);
   } else {
-    // ชีตเดิม — เติมหัวคอลัมน์ที่ขาดให้ (ไม่กระทบข้อมูลเก่า)
-    if (db.getLastColumn() < 10) db.getRange(1, 10).setValue("FolderID").setFontWeight("bold").setBackground(HEADER_BG);
-    if (db.getLastColumn() < 11) db.getRange(1, 11).setValue("ViewCount").setFontWeight("bold").setBackground(HEADER_BG);
+    // ชีตเดิม — ซ่อมหัวตารางเป็นชุดมาตรฐาน (กันค่าเพี้ยนจากอดีต) โดยไม่แตะข้อมูลแถวอื่นเลย
+    db.getRange(1, 1, 1, 11).setValues([["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา", "FolderID", "ViewCount"]]);
+    db.getRange(1, 1, 1, 11).setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // 2) Users — บัญชีเข้าสู่ระบบ (⚠️ อย่าลืมเปลี่ยนรหัสผ่าน admin หลังติดตั้ง!)
