@@ -5,7 +5,7 @@ let appState = {
   documents: [], categories: [], tasks: [], flashcards: [], logs: [], folders: [],
   username: '', role: '',
   selectedFiles: [], currentMode: 'file', currentTab: 'tabMain',
-  currentFolderId: ''
+  currentFolderId: '', favorites: []
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -131,6 +131,7 @@ function applyInitialData(res) {
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
   renderFolderView(); renderPopular();
+  fetchMyFavorites();
   const lt = document.getElementById('lineTokenInput'); if(lt) lt.value = settings.line_token || '';
   const ltt = document.getElementById('lineTargetInput'); if(ltt) ltt.value = settings.line_target || '';
   if(appState.username && appState.role === 'admin') updateDashboardStats();
@@ -234,7 +235,9 @@ function filterDocuments() {
     return;
   }
   
-  tb.innerHTML = docs.map(d => `
+  tb.innerHTML = docs.map(d => {
+    const isFav = appState.favorites.indexOf(d.fileUrl) !== -1;
+    return `
     <tr class="hover:bg-slate-50 border-b transition">
       <td class="py-3 px-4 flex items-center gap-3 font-medium text-slate-700">
         <div class="w-8 h-8 rounded bg-blue-50 text-blue-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-pdf"></i></div>
@@ -250,11 +253,172 @@ function filterDocuments() {
         <button onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
           เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
         </button>
+        <button onclick="toggleFavorite('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded-lg transition align-middle ${isFav ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-100 hover:bg-rose-50 hover:text-rose-400'}" title="${isFav ? 'นำออกจากรายการโปรด' : 'เก็บเข้ารายการโปรด'}"><i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i></button>
         <button onclick="shareDocToLine('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-[#06C755] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition align-middle" title="แชร์ผ่าน LINE"><i class="fa-brands fa-line"></i></button>
         <button onclick="openDocMenu('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition align-middle" title="จัดการไฟล์"><i class="fa-solid fa-ellipsis-vertical"></i></button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
+}
+
+// ---------------------------------------------------
+// ❤️ รายการโปรด (ผูกกับ URL ไฟล์ — คงที่แม้แถวชีตเลื่อน)
+// ---------------------------------------------------
+function fetchMyFavorites() {
+  const user = appState.username || 'guest';
+  fetchWithTimeout(API_URL + `?action=getMyFavorites&username=${encodeURIComponent(user)}`, 15000)
+    .then(r => r.json())
+    .then(res => {
+      appState.favorites = (res.favorites || []).map(f => f.fileUrl);
+      updateFavBadge();
+      filterDocuments();
+      renderFavoritesList();
+    }).catch(() => {});
+}
+
+function updateFavBadge() {
+  const badge = document.getElementById('favCountBadge');
+  if(!badge) return;
+  badge.innerText = appState.favorites.length;
+  badge.classList.toggle('hidden', appState.favorites.length === 0);
+  badge.classList.toggle('flex', appState.favorites.length > 0);
+}
+
+function toggleFavorite(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  const url = d.fileUrl;
+  const idx = appState.favorites.indexOf(url);
+  const willFav = idx === -1;
+  if(willFav) appState.favorites.push(url); else appState.favorites.splice(idx, 1);
+  updateFavBadge(); filterDocuments(); renderFavoritesList();
+
+  fetchWithTimeout(API_URL + `?action=toggleFavorite&username=${encodeURIComponent(appState.username || 'guest')}&fileUrl=${encodeURIComponent(url)}&docTitle=${encodeURIComponent(d.title)}`, 15000)
+    .then(r => r.json())
+    .then(res => { if(!res.success) fetchMyFavorites(); }) // เซิร์ฟเวอร์ไม่สำเร็จ → ดึงสถานะจริงกลับมา
+    .catch(() => {});
+}
+
+function removeFavoriteByUrl(url) {
+  const idx = appState.favorites.indexOf(url);
+  if(idx > -1) appState.favorites.splice(idx, 1);
+  updateFavBadge(); filterDocuments(); renderFavoritesList();
+  fetchWithTimeout(API_URL + `?action=toggleFavorite&username=${encodeURIComponent(appState.username || 'guest')}&fileUrl=${encodeURIComponent(url)}&docTitle=`, 15000)
+    .then(r => r.json())
+    .then(res => { if(!res.success) fetchMyFavorites(); })
+    .catch(() => {});
+}
+
+function openFavModal() {
+  renderFavoritesList();
+  document.getElementById('favoritesModal').classList.remove('hidden');
+}
+
+function closeFavModal() {
+  document.getElementById('favoritesModal').classList.add('hidden');
+}
+
+function renderFavoritesList() {
+  const list = document.getElementById('favoritesList');
+  if(!list) return;
+  if(appState.favorites.length === 0) {
+    list.innerHTML = `<div class="text-center py-10 text-slate-400">
+      <i class="fa-regular fa-heart text-4xl mb-3 block text-slate-300"></i>
+      <p class="text-sm font-medium">ยังไม่มีรายการโปรด — กดหัวใจ 🤍 ที่ไฟล์ในตารางเพื่อเก็บไว้ที่นี่</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = appState.favorites.map(url => {
+    const d = appState.documents.find(x => x.fileUrl === url);
+    if(d) {
+      return `
+      <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+        <div class="w-9 h-9 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-pdf"></i></div>
+        <div class="min-w-0 flex-1">
+          <p class="font-bold text-slate-700 truncate">${d.title}</p>
+          <p class="text-[11px] text-slate-400 truncate">${d.uploader} · ${d.category || '-'}</p>
+        </div>
+        <button onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="px-3 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold transition shrink-0">เปิด</button>
+        <button onclick="removeFavoriteByUrl('${d.fileUrl}')" class="w-8 h-8 flex items-center justify-center rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition shrink-0" title="นำออก"><i class="fa-solid fa-heart-crack"></i></button>
+      </div>`;
+    }
+    return `
+    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 opacity-70">
+      <div class="w-9 h-9 rounded-lg bg-slate-200 text-slate-400 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-circle-xmark"></i></div>
+      <p class="flex-1 text-xs text-slate-400 truncate">ไฟล์นี้ถูกลบออกจากระบบแล้ว (อาจถูกลบโดยผู้อัปโหลด)</p>
+      <button onclick="removeFavoriteByUrl('${url}')" class="px-3 py-1.5 text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition shrink-0">นำออก</button>
+    </div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------
+// 🚨 แจ้งลิงก์เสีย
+// ---------------------------------------------------
+function reportBrokenLinkUI(docId) {
+  Swal.fire({
+    title: 'แจ้งลิงก์เสีย',
+    input: 'text',
+    inputPlaceholder: 'รายละเอียดเพิ่มเติม เช่น เปิดไม่ได้ / ไฟล์เสียหาย (ไม่กรอกก็ได้)',
+    showCancelButton: true,
+    confirmButtonText: 'ส่งเรื่องให้แอดมิน',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: '#ef4444'
+  }).then(r => {
+    if(!r.isConfirmed) return;
+    fetchWithTimeout(API_URL + `?action=reportBrokenLink&docId=${docId}&username=${encodeURIComponent(appState.username || 'guest')}&note=${encodeURIComponent(r.value || '')}`, 25000)
+      .then(x => x.json())
+      .then(res => {
+        if(res.success) {
+          Swal.fire('ส่งเรื่องแล้ว!', res.lineSent ? 'แจ้งเตือนเข้า LINE ของแอดมินทันที 🚨' : 'บันทึกเรื่องไว้ใน log ให้แอดมินตรวจสอบแล้ว', 'success');
+        } else {
+          Swal.fire('ไม่สำเร็จ', res.message, 'error');
+        }
+      }).catch(() => Swal.fire('เชื่อมต่อไม่ได้', 'ลองอีกครั้ง', 'warning'));
+  });
+}
+
+// ---------------------------------------------------
+// 🔐 เปลี่ยนรหัสผ่านของตัวเอง
+// ---------------------------------------------------
+function openChangePasswordModal() {
+  if(!appState.username) {
+    return Swal.fire('กรุณาเข้าสู่ระบบก่อน', 'เปลี่ยนรหัสผ่านได้เฉพาะบัญชีที่ล็อกอินอยู่', 'info');
+  }
+  document.getElementById('cpUsernameLabel').innerText = appState.username;
+  document.getElementById('cpOldPass').value = '';
+  document.getElementById('cpNewPass').value = '';
+  document.getElementById('cpNewPass2').value = '';
+  document.getElementById('changePasswordModal').classList.remove('hidden');
+}
+
+function submitChangePassword() {
+  const oldP = document.getElementById('cpOldPass').value;
+  const newP = document.getElementById('cpNewPass').value;
+  const newP2 = document.getElementById('cpNewPass2').value;
+  if(!oldP || !newP) return Swal.fire('กรอกไม่ครบ', 'กรอกรหัสเดิมและรหัสใหม่ให้ครบ', 'warning');
+  if(newP.length < 4) return Swal.fire('รหัสสั้นไป', 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 4 ตัวอักษร', 'warning');
+  if(newP !== newP2) return Swal.fire('รหัสไม่ตรงกัน', 'ยืนยันรหัสผ่านใหม่ให้เหมือนกัน', 'warning');
+
+  const btn = document.getElementById('cpSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังบันทึก...';
+
+  fetchWithTimeout(API_URL + `?action=changePassword&username=${encodeURIComponent(appState.username)}&oldPassword=${encodeURIComponent(oldP)}&newPassword=${encodeURIComponent(newP)}`, 15000)
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-key mr-1"></i> บันทึกรหัสใหม่';
+      if(res.success) {
+        document.getElementById('changePasswordModal').classList.add('hidden');
+        Swal.fire('เปลี่ยนรหัสผ่านสำเร็จ', 'ใช้รหัสใหม่ตอนเข้าสู่ระบบครั้งหน้านะ', 'success');
+      } else {
+        Swal.fire('ไม่สำเร็จ', res.message, 'error');
+      }
+    }).catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-key mr-1"></i> บันทึกรหัสใหม่';
+      Swal.fire('เชื่อมต่อไม่ได้', 'ลองอีกครั้ง', 'warning');
+    });
 }
 
 // ---------------------------------------------------
@@ -266,7 +430,7 @@ function openDocMenu(docId) {
   Swal.fire({
     title: d.title.length > 30 ? d.title.substring(0, 30) + '...' : d.title,
     input: 'select',
-    inputOptions: { rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', delete: '🗑️  ลบเอกสาร' },
+    inputOptions: { rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', report: '🚨  แจ้งลิงก์เสีย', delete: '🗑️  ลบเอกสาร' },
     inputPlaceholder: 'เลือกการดำเนินการ',
     showCancelButton: true,
     confirmButtonText: 'ดำเนินการ',
@@ -276,6 +440,7 @@ function openDocMenu(docId) {
     if(!r.isConfirmed || !r.value) return;
     if(r.value === 'rename') renameDocumentUI(docId);
     else if(r.value === 'move') moveDocumentUI(docId);
+    else if(r.value === 'report') reportBrokenLinkUI(docId);
     else deleteDocumentUI(docId);
   });
 }

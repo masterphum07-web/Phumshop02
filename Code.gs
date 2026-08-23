@@ -107,6 +107,14 @@ function handleRequest(data) {
     return setLineConfig(data.token, data.target, data.username);
   } else if (action === 'testLineMessage') {
     return testLineMessage();
+  } else if (action === 'toggleFavorite') {
+    return toggleFavorite(data.username, data.fileUrl, data.docTitle);
+  } else if (action === 'getMyFavorites') {
+    return getMyFavorites(data.username);
+  } else if (action === 'reportBrokenLink') {
+    return reportBrokenLink(data.docId, data.username, data.note);
+  } else if (action === 'changePassword') {
+    return changePassword(data.username, data.oldPassword, data.newPassword);
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -781,6 +789,89 @@ function testLineMessage() {
 }
 
 // ------------------------------------------------------------------
+// ❤️ รายการโปรด (ผูกกับ URL ของไฟล์ซึ่งเป็นค่าคงที่ ไม่ผูกเลขแถว
+//    เพื่อไม่ให้พังเมื่อมีไฟล์ถูกลบแล้วแถวชีตเลื่อน)
+// ------------------------------------------------------------------
+function toggleFavorite(username, fileUrl, docTitle) {
+  try {
+    if(!fileUrl) return { success: false, message: "ไม่พบลิงก์ไฟล์" };
+    const ss = getSS();
+    let sheet = ss.getSheetByName("Favorites");
+    if(!sheet) { sheet = ss.insertSheet("Favorites"); sheet.appendRow(["Username", "FileUrl", "DocTitle", "SavedAt"]); }
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === String(username || "guest") && String(data[i][1]) === String(fileUrl)) {
+        sheet.deleteRow(i + 1);
+        return { success: true, favorited: false };
+      }
+    }
+    sheet.appendRow([username || "guest", String(fileUrl), docTitle || "", Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm")]);
+    return { success: true, favorited: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function getMyFavorites(username) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName("Favorites");
+    if(!sheet) return { success: true, favorites: [] };
+    const data = sheet.getDataRange().getDisplayValues();
+    const favs = [];
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === String(username || "guest") && data[i][1]) {
+        favs.push({ fileUrl: String(data[i][1]), title: String(data[i][2] || "") });
+      }
+    }
+    return { success: true, favorites: favs };
+  } catch(e) { return { success: true, favorites: [] }; }
+}
+
+// ------------------------------------------------------------------
+// 🚨 แจ้งลิงก์เสีย → บันทึก log + ส่ง LINE หาแอดมิน (ถ้าตั้งค่าไว้)
+// ------------------------------------------------------------------
+function reportBrokenLink(docId, username, note) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
+    const rowNum = getDocRow(sheet, docId);
+    if(rowNum < 1) return { success: false, message: "ไม่พบเอกสารนี้" };
+    const title = sheet.getRange(rowNum, 3).getDisplayValue();
+    const url = String(sheet.getRange(rowNum, 6).getDisplayValue() || "");
+    logActivity(`🚨 ${username || "ผู้ใช้"} แจ้งลิงก์เสีย: ${title}`);
+    const lineSent = sendLineMessage(`🚨 แจ้งลิงก์เสีย\n📄 ${title}\n🔗 ${url}\n👤 แจ้งโดย ${username || "ผู้ใช้"}${note ? "\n📝 " + note : ""}`);
+    return { success: true, lineSent: lineSent };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ------------------------------------------------------------------
+// 🔐 เปลี่ยนรหัสผ่านของตัวเอง (ตรวจรหัสเดิมก่อนทุกครั้ง)
+// ------------------------------------------------------------------
+function changePassword(username, oldPassword, newPassword) {
+  try {
+    username = String(username || '').trim();
+    if(!username) return { success: false, message: "กรุณาเข้าสู่ระบบก่อน" };
+    newPassword = String(newPassword || '');
+    if(newPassword.length < 4) return { success: false, message: "รหัสผ่านใหม่ต้องยาวอย่างน้อย 4 ตัวอักษร" };
+    const ss = getSS();
+    const sheet = ss.getSheetByName("Users");
+    if(!sheet) return { success: false, message: "ไม่พบชีต Users" };
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === username) {
+        if(String(data[i][1]) !== String(oldPassword)) {
+          return { success: false, message: "รหัสผ่านเดิมไม่ถูกต้อง" };
+        }
+        sheet.getRange(i + 1, 2).setValue(newPassword);
+        logActivity(`${username} เปลี่ยนรหัสผ่านเรียบร้อย`);
+        return { success: true };
+      }
+    }
+    return { success: false, message: "ไม่พบบัญชีผู้ใช้นี้" };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ------------------------------------------------------------------
 // 🔄 นำเข้าจาก Drive: สแกนโครงสร้างโฟลเดอร์ใน Drive หลัก
 //    สร้างโฟลเดอร์ในระบบให้ตรงโครง + ลงทะเบียนไฟล์ที่ยังไม่มีอัตโนมัติ
 //    (ไฟล์ที่ลงทะเบียนแล้วจะข้าม ทำซ้ำได้ปลอดภัย)
@@ -966,6 +1057,13 @@ function setupAllSheets(ss) {
   if (fold.getLastRow() === 0) {
     fold.appendRow(["ID", "Name", "ParentID", "ShareToken", "ShareEnabled", "CreatedBy"]);
     fold.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground(HEADER_BG);
+  }
+
+  // 9) Favorites — รายการโปรดรายคน (ผูกกับ URL ไฟล์)
+  let favs = ss.getSheetByName("Favorites") || ss.insertSheet("Favorites");
+  if (favs.getLastRow() === 0) {
+    favs.appendRow(["Username", "FileUrl", "DocTitle", "SavedAt"]);
+    favs.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // ลบแท็บ Sheet1 เปล่าที่ Google สร้างมาให้ตอนแรก
