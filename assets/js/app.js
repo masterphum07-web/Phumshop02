@@ -512,12 +512,13 @@ async function submitFlashcard() {
   const q = document.getElementById('fcQuestion').value;
   const a = document.getElementById('fcAnswer').value;
   const fileInput = document.getElementById('fcImage');
+  if(!s) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกวิชาของแฟลชการ์ด (ถ้ายังไม่มีวิชา กดปุ่ม ⚙️ เพื่อสร้างก่อน)', 'warning');
   if(!q || !a) return Swal.fire('แจ้งเตือน', 'กรุณากรอกคำถามและคำตอบ', 'warning');
-  
+
   const btn = document.getElementById('fcSubmitBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
-  
+
   let base64 = "", name = "", mime = "";
   if(fileInput.files.length > 0) {
     const file = fileInput.files[0];
@@ -528,24 +529,45 @@ async function submitFlashcard() {
       reader.readAsDataURL(file);
     });
   }
-  
-  const payload = {
-    action: 'addFlashcardItem', username: appState.username || 'guest',
-    subject: s, question: q, answer: a,
-    imageBase64: base64, imageName: name, imageMime: mime
-  };
-  
-  fetch(API_URL, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(() => {
+
+  const done = () => {
     closeFlashcardModal();
     btn.disabled = false;
     btn.innerHTML = 'บันทึกแฟลชการ์ด';
-    Swal.fire('สำเร็จ', 'สร้างแฟลชการ์ดเรียบร้อย', 'success');
-    refreshData();
-  });
+  };
+
+  if(!base64) {
+    // ไม่มีรูป → ส่งแบบ GET เพื่ออ่านผลจริงจากเซิร์ฟเวอร์ได้
+    const url = API_URL + `?action=addFlashcardItem&username=${encodeURIComponent(appState.username || 'guest')}&subject=${encodeURIComponent(s)}&question=${encodeURIComponent(q)}&answer=${encodeURIComponent(a)}`;
+    fetchWithTimeout(url, 15000).then(r => r.json()).then(res => {
+      done();
+      if(res.success) {
+        Swal.fire('สำเร็จ', 'สร้างแฟลชการ์ดเรียบร้อย', 'success');
+        refreshData(true);
+      } else {
+        Swal.fire('บันทึกไม่สำเร็จ', res.message || 'เกิดข้อผิดพลาดฝั่งเซิร์ฟเวอร์ ลองอีกครั้ง', 'error');
+      }
+    }).catch(() => {
+      done();
+      setTimeout(() => refreshData(true), 1500);
+    });
+  } else {
+    // มีรูป → POST แบบเดิม (backend จะบันทึกการ์ดก่อนเสมอแม้รูปจะพัง)
+    const payload = {
+      action: 'addFlashcardItem', username: appState.username || 'guest',
+      subject: s, question: q, answer: a,
+      imageBase64: base64, imageName: name, imageMime: mime
+    };
+    fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(() => {
+      done();
+      Swal.fire('สำเร็จ', 'สร้างแฟลชการ์ดเรียบร้อย', 'success');
+      setTimeout(() => refreshData(true), 1500);
+    });
+  }
 }
 
 function deleteFlashcard(id, event) {

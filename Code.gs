@@ -347,18 +347,31 @@ function toggleChecklistTask(id, currentStatus) {
 
 function addFlashcardItem(username, subject, question, answer, imageBase64, imageName, imageMime) {
   try {
-    let imageUrl = "-";
-    if(imageBase64) {
-      const folder = DriveApp.getFolderById(FOLDER_ID);
-      const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(imageBase64), imageMime, "FC_" + imageName));
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      imageUrl = file.getUrl();
-    }
     const ss = getSS();
     let sheet = ss.getSheetByName("Flashcards");
     if(!sheet) { sheet = ss.insertSheet("Flashcards"); sheet.appendRow(["ID", "Username", "SubjectID", "Question", "Answer", "ImageURL"]); }
-    sheet.appendRow(["FLS_" + Utilities.getUuid().substring(0,8), username, subject, question, answer, imageUrl]);
-    logActivity(`${username} สร้างแฟลชการ์ดหมวด ${subject}`);
+
+    // บันทึกการ์ดก่อนเสมอ — รูปอัปโหลดทีหลัง ถ้ารูปพังการ์ดก็ยังอยู่ครบ
+    const rowId = "FLS_" + Utilities.getUuid().substring(0,8);
+    sheet.appendRow([rowId, username || "guest", subject || "", question, answer, "-"]);
+    logActivity(`${username || "ผู้ใช้"} สร้างแฟลชการ์ดหมวด ${subject || "ทั่วไป"}`);
+
+    if(imageBase64) {
+      try {
+        const folder = DriveApp.getFolderById(FOLDER_ID);
+        const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(imageBase64), imageMime, "FC_" + imageName));
+        // บางโดเมนปิดการแชร์สาธารณะ จึงกันไม่ให้ขั้นตอนนี้ทำลายผลลัพธ์
+        try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(shareError) { Logger.log(shareError); }
+        const data = sheet.getDataRange().getValues();
+        for(let i=1; i<data.length; i++) {
+          if(String(data[i][0]) === rowId) { sheet.getRange(i+1, 6).setValue(file.getUrl()); break; }
+        }
+      } catch(imgError) {
+        Logger.log(imgError);
+        // รูปไม่สำเร็จ = การ์ดยังใช้ได้ แค่ไม่มีภาพประกอบ
+      }
+    }
+
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
