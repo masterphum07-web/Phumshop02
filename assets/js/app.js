@@ -130,7 +130,7 @@ function applyInitialData(res) {
     document.getElementById('settingAnimations').checked = settings.animations_enabled !== 'false';
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
-  renderFolderView(); renderPopular();
+  renderFolderView(); renderPopular(); renderFolderCascade();
   fetchMyFavorites();
   const lt = document.getElementById('lineTokenInput'); if(lt) lt.value = settings.line_token || '';
   const ltt = document.getElementById('lineTargetInput'); if(ltt) ltt.value = settings.line_target || '';
@@ -177,23 +177,66 @@ function folderDepthOf(folderId) {
   return depth;
 }
 
+// ---------------------------------------------------
+// เลือกโฟลเดอร์ทีละชั้นในฟอร์มอัปโหลด (กันลิสต์ยาวเมื่อโฟลเดอร์เยอะ)
+// ---------------------------------------------------
+let folderSelection = []; // id ของโฟลเดอร์ที่เลือก เรียงตามชั้น
+
+function renderFolderCascade() {
+  const box = document.getElementById('folderCascade');
+  if(!box) return;
+  if(appState.folders.length === 0) {
+    box.innerHTML = '<p class="text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 text-center">ยังไม่มีโฟลเดอร์ — สร้างได้ที่แท็บคลังโฟลเดอร์</p>';
+    return;
+  }
+
+  const levelLabels = ['ปี / หมวดหลัก', 'วิชา', 'หมวด (สรุป/งาน)'];
+  let html = '';
+  let parentId = '';
+
+  for(let lvl = 0; lvl < 6; lvl++) {
+    const siblings = appState.folders.filter(f => (f.parentId || '') === parentId);
+    if(lvl > 0 && siblings.length === 0) break; // ชั้นนี้ไม่มีลูกแล้ว → จบ
+
+    // ตัดสถานะที่เลือกไว้ทิ้งถ้าโฟลเดอร์นั้นหายไป (ถูกลบ)
+    if(folderSelection[lvl] && !siblings.some(f => f.id === folderSelection[lvl])) {
+      folderSelection = folderSelection.slice(0, lvl);
+    }
+    const current = folderSelection[lvl] || '';
+    const label = levelLabels[Math.min(lvl, levelLabels.length - 1)];
+
+    html += `
+      <select onchange="onFolderLevelChange(${lvl}, this.value)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition text-slate-700 cursor-pointer text-xs font-medium">
+        <option value="">${lvl === 0 ? '— เลือก' + label + ' —' : '— ไม่ระบุเพิ่ม (ใช้แค่ชั้นนี้) —'}</option>
+        ${siblings.map(f => `<option value="${f.id}" ${f.id === current ? 'selected' : ''}>${f.name}</option>`).join('')}
+      </select>`;
+
+    if(!current) break; // ยังไม่เลือกชั้นนี้ → ไม่โชว์ชั้นถัดไป
+    parentId = current;
+  }
+  box.innerHTML = html;
+}
+
+function onFolderLevelChange(level, value) {
+  folderSelection = folderSelection.slice(0, level);
+  if(value) folderSelection.push(value);
+  renderFolderCascade();
+}
+
+function getSelectedFolderId() {
+  return folderSelection[folderSelection.length - 1] || '';
+}
+
+function resetFolderCascade() {
+  folderSelection = [];
+  renderFolderCascade();
+}
+
 function updateCategoryDropdowns() {
   const cats = appState.categories.filter(c => c.name.trim() !== '').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
   document.getElementById('categoryFilter').innerHTML = '<option value="">ทุกวิชา</option>' + cats;
 
-  // ตัวเลือกโฟลเดอร์ในฟอร์มอัปโหลด (เรียงตามชื่อ + เยื้องตามความลึก)
-  const docFolderSelect = document.getElementById('docFolderSelect');
-  if (docFolderSelect) {
-    const currentValue = docFolderSelect.value;
-    const sorted = [...appState.folders].sort((a, b) => folderPathOf(a.id).localeCompare(folderPathOf(b.id), 'th'));
-    docFolderSelect.innerHTML = '<option value="">เลือกโฟลเดอร์</option>' + sorted.map(f => {
-      const depth = folderDepthOf(f.id);
-      return `<option value="${f.id}">${'&nbsp;&nbsp;&nbsp;'.repeat(depth)}${depth > 0 ? '↳ ' : '📁 '}${f.name}</option>`;
-    }).join('');
-    if ([...docFolderSelect.options].some(option => option.value === currentValue)) {
-      docFolderSelect.value = currentValue;
-    }
-  }
+  // ฟอร์มอัปโหลดใช้ระบบเลือกโฟลเดอร์ทีละชั้น (ดู renderFolderCascade)
 
   // ตัวเลือกวิชา (ใช้กับโหมดเตรียมสอบ) — ไม่ระบุก็ได้ จะใช้ชื่อตามโฟลเดอร์แทน
   const docCategorySelect = document.getElementById('docCategorySelect');
@@ -784,7 +827,7 @@ async function handleFormSubmit(e) {
   e.preventDefault();
   const title = document.getElementById('docTitleName').value;
   const uploader = document.getElementById('uploaderName').value;
-  const folderId = document.getElementById('docFolderSelect').value;
+  const folderId = getSelectedFolderId();
   const cat = document.getElementById('docCategorySelect').value;
   const docType = document.getElementById('docTypeSelect').value;
 
@@ -798,6 +841,7 @@ async function handleFormSubmit(e) {
     fetch(formUrl).then(() => {
       Swal.fire('สำเร็จ!', 'เพิ่มเอกสารจากลิงก์เรียบร้อย', 'success');
       document.getElementById('uploadForm').reset();
+      resetFolderCascade();
       refreshData(true);
     }).catch(() => Swal.fire('สำเร็จ', 'ส่งคำสั่งเรียบร้อย (ไม่สามารถอ่านสถานะได้)', 'success'));
 
@@ -830,6 +874,7 @@ async function handleFormSubmit(e) {
 
     Swal.fire('สำเร็จ!', `อัปโหลด ${successCount} ไฟล์เรียบร้อย`, 'success');
     document.getElementById('uploadForm').reset();
+    resetFolderCascade();
     appState.selectedFiles = [];
     document.getElementById('fileQueueContainer').classList.add('hidden');
     // รอให้ Apps Script เขียนแถวลงชีตก่อน แล้วอ่านข้อมูลจากเซิร์ฟเวอร์ใหม่โดยไม่ใช้แคช
