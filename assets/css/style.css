@@ -223,3 +223,8 @@ body.dark .swal2-input, body.dark .swal2-select { background: #0f172a !important
 
 /* QR คงพื้นขาวไว้ให้สแกนได้ */
 body.dark #shareQrBox img, body.dark #shareQrBox canvas { background: #fff !important; padding: 4px; border-radius: 8px; }
+
+/* แถบหัวโมดัลที่ใช้ไล่เฉดสีอ่อน (เช่น หน้าต่างนำเข้าจาก Drive) → โทนมืด */
+body.dark #syncModal > div { background: linear-gradient(to right, rgba(16, 185, 129, .2), rgba(13, 148, 136, .22)) !important; }
+body.dark .from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, .22) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+body.dark .to-teal-50 { --tw-gradient-to: rgba(13, 148, 136, .25) !important; }
