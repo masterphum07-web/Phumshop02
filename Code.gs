@@ -91,6 +91,20 @@ function handleRequest(data) {
     return syncFromDrive(data.username);
   } else if (action === 'getDriveUsage') {
     return getDriveUsage();
+  } else if (action === 'deleteDocument') {
+    return deleteDocument(data.docId, data.username);
+  } else if (action === 'renameDocument') {
+    return renameDocument(data.docId, data.newTitle, data.username);
+  } else if (action === 'moveDocument') {
+    return moveDocument(data.docId, data.newFolderId, data.username);
+  } else if (action === 'trackView') {
+    return trackView(data.docId);
+  } else if (action === 'reviewFlashcard') {
+    return reviewFlashcard(data.id, data.remembered);
+  } else if (action === 'setLineConfig') {
+    return setLineConfig(data.token, data.target, data.username);
+  } else if (action === 'testLineMessage') {
+    return testLineMessage();
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -155,7 +169,8 @@ function getInitialData() {
            fileUrl: fileUrl,
            originalFilename: originalFilename,
            docType: docType,
-           folderId: row[9] ? String(row[9]) : ""
+           folderId: row[9] ? String(row[9]) : "",
+           views: row[10] ? (Number(String(row[10]).replace(/[^0-9]/g, '')) || 0) : 0
          });
       }
     }
@@ -182,7 +197,7 @@ function getInitialData() {
       const data = fcSheet.getDataRange().getDisplayValues();
       for(let i=1; i<data.length; i++) {
         if(data[i][0]) {
-          flashcards.push({ id: String(data[i][0]), username: String(data[i][1]), subject: String(data[i][2]), question: String(data[i][3]), answer: String(data[i][4]), image: data[i][5] ? String(data[i][5]) : "-" });
+          flashcards.push({ id: String(data[i][0]), username: String(data[i][1]), subject: String(data[i][2]), question: String(data[i][3]), answer: String(data[i][4]), image: data[i][5] ? String(data[i][5]) : "-", box: row6ToBox(data[i][6]) });
         }
       }
     }
@@ -205,7 +220,8 @@ function getInitialData() {
       background_color: settings.backgroundColor, banner_button_text: settings.bannerButtonText,
       show_banner: settings.showBanner, site_icon: settings.siteIcon,
       site_font: settings.siteFont, corner_style: settings.cornerStyle,
-      animations_enabled: settings.animationsEnabled, footer_text: settings.footerText
+      animations_enabled: settings.animationsEnabled, footer_text: settings.footerText,
+      line_token: settings.lineToken || "", line_target: settings.lineTarget || ""
     }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
@@ -299,8 +315,9 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     const folderPath = folderId ? getFolderPath(ss, folderId) : "";
     // ถ้าเลือกวิชาไว้ให้ใช้วิชา แต่ถ้าไม่ระบุวิชาให้ใช้ชื่อเส้นทางโฟลเดอร์แทน
     const finalCategory = category || folderPath || "ทั่วไป";
-    docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || ""]);
+    docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`อัปโหลดไฟล์: ${docTitle || filename} โดย ${uploader}`);
+    sendLineMessage(`📄 มีเอกสารใหม่: ${docTitle || filename}\n👤 โดย ${uploader || "-"}${folderPath ? "\n📁 " + folderPath : ""}`);
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
@@ -312,8 +329,9 @@ function uploadDocumentByLink(docTitle, url, category, uploader, docType, folder
     const folderPath = folderId ? getFolderPath(ss, folderId) : "";
     // ถ้าเลือกวิชาไว้ให้ใช้วิชา แต่ถ้าไม่ระบุวิชาให้ใช้ชื่อเส้นทางโฟลเดอร์แทน
     const finalCategory = category || folderPath || "ทั่วไป";
-    if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || ""]);
+    if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
+    sendLineMessage(`🔗 เพิ่มเอกสารใหม่ (ลิงก์): ${docTitle}\n👤 โดย ${uploader || "-"}${folderPath ? "\n📁 " + folderPath : ""}`);
     return { success: true };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
@@ -402,16 +420,22 @@ function updateSettings(settingsData, username) {
       sheet = ss.insertSheet("Settings");
       sheet.appendRow(["Key", "Value"]);
     }
-    
-    // เคลียร์ข้อมูลเก่า
-    sheet.clearContents();
-    sheet.appendRow(["Key", "Value"]);
-    
-    // ใส่ข้อมูลใหม่
-    for (let key in settingsData) {
-      sheet.appendRow([key, settingsData[key]]);
+
+    // อ่านค่าเดิมมารวมก่อน เพื่อไม่ให้ค่าอื่น (เช่น ค่า LINE) หายไปตอนบันทึก
+    const existing = {};
+    const old = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<old.length; i++) {
+      if(old[i][0]) existing[String(old[i][0])] = old[i][1];
     }
-    
+    const merged = Object.assign(existing, settingsData);
+
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, 2).setValues([["Key", "Value"]]);
+    const keys = Object.keys(merged);
+    if(keys.length > 0) {
+      sheet.getRange(2, 1, keys.length, 2).setValues(keys.map(k => [k, merged[k]]));
+    }
+
     logActivity(`${username || "แอดมิน"} อัปเดตการตั้งค่าเว็บไซต์`);
     return { success: true };
   } catch (e) {
@@ -585,6 +609,152 @@ function getFolderByToken(token) {
 }
 
 // ------------------------------------------------------------------
+// จัดการเอกสาร: ลบ / แก้ชื่อ / ย้ายโฟลเดอร์ / ยอดวิว
+// (docId อยู่ในรูป DOC_แถว ซึ่ง map กับเลขแถวในชีตโดยตรง)
+// ------------------------------------------------------------------
+function row6ToBox(v) { return v ? (Number(String(v).replace(/[^0-9]/g, '')) || 0) : 0; }
+
+function getDocRow(sheet, docId) {
+  const m = String(docId || "").match(/^DOC_(\d+)$/);
+  if(!m) return -1;
+  const rowNum = Number(m[1]);
+  if(rowNum < 1 || rowNum > sheet.getLastRow()) return -1;
+  return rowNum;
+}
+
+function deleteDocument(docId, username) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
+    const rowNum = getDocRow(sheet, docId);
+    if(rowNum < 1) return { success: false, message: "ไม่พบเอกสารนี้ (ข้อมูลอาจถูกอัปเดตแล้ว ลองรีเฟรชใหม่)" };
+
+    const title = sheet.getRange(rowNum, 3).getDisplayValue();
+    const url = String(sheet.getRange(rowNum, 6).getDisplayValue() || "");
+    // ย้ายไฟล์จริงใน Drive ไปถังขยะ (ถ้าเป็นลิงก์ Drive ของเรา)
+    if(url.indexOf('drive.google.com') > -1) {
+      try {
+        const fid = url.match(/[-\w]{25,}/);
+        if(fid) DriveApp.getFileById(fid[0]).setTrashed(true);
+      } catch(e) { Logger.log(e); }
+    }
+    sheet.deleteRow(rowNum);
+    logActivity(`${username || "ผู้ใช้"} ลบเอกสาร: ${title}`);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function renameDocument(docId, newTitle, username) {
+  try {
+    if(!newTitle || !String(newTitle).trim()) return { success: false, message: "กรุณาพิมพ์ชื่อใหม่" };
+    const ss = getSS();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
+    const rowNum = getDocRow(sheet, docId);
+    if(rowNum < 1) return { success: false, message: "ไม่พบเอกสารนี้" };
+    sheet.getRange(rowNum, 3).setValue(String(newTitle).trim());
+    logActivity(`${username || "ผู้ใช้"} แก้ชื่อเอกสารเป็น: ${newTitle}`);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function moveDocument(docId, newFolderId, username) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
+    const rowNum = getDocRow(sheet, docId);
+    if(rowNum < 1) return { success: false, message: "ไม่พบเอกสารนี้" };
+    const folderPath = newFolderId ? getFolderPath(ss, newFolderId) : "";
+    sheet.getRange(rowNum, 10).setValue(newFolderId || "");
+    sheet.getRange(rowNum, 7).setValue(folderPath || "ทั่วไป");
+    logActivity(`${username || "ผู้ใช้"} ย้ายเอกสารไปโฟลเดอร์: ${folderPath || "ไม่ได้จัดโฟลเดอร์"}`);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function trackView(docId) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if(!sheet) return { success: false };
+    const rowNum = getDocRow(sheet, docId);
+    if(rowNum < 1) return { success: false };
+    const current = Number(String(sheet.getRange(rowNum, 11).getDisplayValue() || "0").replace(/[^0-9]/g, '')) || 0;
+    sheet.getRange(rowNum, 11).setValue(current + 1);
+    return { success: true };
+  } catch(e) { return { success: false }; }
+}
+
+// ทบทวนแฟลชการ์ดแบบ Leitner: จำได้ = กล่องขยับขึ้น (สูงสุด 5) / ลืม = กลับกล่อง 0
+function reviewFlashcard(id, remembered) {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName("Flashcards");
+    if(!sheet) return { success: false };
+    const data = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === String(id)) {
+        const box = row6ToBox(data[i][6]);
+        const newBox = String(remembered) === 'true' ? Math.min(box + 1, 5) : 0;
+        sheet.getRange(i+1, 7).setValue(newBox);
+        return { success: true, box: newBox };
+      }
+    }
+    return { success: false };
+  } catch(e) { return { success: false }; }
+}
+
+// ------------------------------------------------------------------
+// 🔔 แจ้งเตือนผ่าน LINE Messaging API (ค่าว่าง = ปิดใช้งาน)
+// ใช้ broadcast ถ้าไม่ได้ตั้ง target (ส่งหาทุกคนที่เพิ่มบอทเป็นเพื่อน)
+// ------------------------------------------------------------------
+function sendLineMessage(text) {
+  try {
+    const ss = getSS();
+    const settingsSheet = ss.getSheetByName("Settings");
+    if(!settingsSheet) return false;
+    const data = settingsSheet.getDataRange().getDisplayValues();
+    let token = "", target = "";
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][0]) === 'lineToken') token = String(data[i][1] || '').trim();
+      if(String(data[i][0]) === 'lineTarget') target = String(data[i][1] || '').trim();
+    }
+    if(!token) return false;
+
+    const endpoint = target ? 'https://api.line.me/v2/bot/message/push' : 'https://api.line.me/v2/bot/message/broadcast';
+    const body = { messages: [{ type: 'text', text: String(text).substring(0, 1800) }] };
+    if(target) body.to = target;
+
+    const resp = UrlFetchApp.fetch(endpoint, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'Authorization': 'Bearer ' + token },
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+    Logger.log('LINE notify: ' + resp.getResponseCode() + ' ' + resp.getContentText());
+    return resp.getResponseCode() === 200;
+  } catch(e) { Logger.log(e); return false; }
+}
+
+function setLineConfig(token, target, username) {
+  try {
+    updateSettings({ lineToken: String(token || '').trim(), lineTarget: String(target || '').trim() }, username);
+    logActivity(`${username || "แอดมิน"} อัปเดตการตั้งค่าแจ้งเตือน LINE`);
+    return { success: true, message: 'บันทึกค่า LINE เรียบร้อย' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function testLineMessage() {
+  const ok = sendLineMessage('✅ ทดสอบจาก PHUMSHOP 02 — ถ้าเห็นข้อความนี้แปลว่าเชื่อมต่อ LINE สำเร็จแล้ว');
+  return ok
+    ? { success: true, message: 'ส่งข้อความทดสอบแล้ว ไปดูใน LINE ของคุณ' }
+    : { success: false, message: 'ส่งไม่สำเร็จ — ตรวจ Channel Access Token ให้แน่ใจ (ยาวประมาณ 170+ ตัวอักษร) และต้องมีคนเพิ่มบอทเป็นเพื่อนอย่างน้อย 1 คน' };
+}
+
+// ------------------------------------------------------------------
 // 🔄 นำเข้าจาก Drive: สแกนโครงสร้างโฟลเดอร์ใน Drive หลัก
 //    สร้างโฟลเดอร์ในระบบให้ตรงโครง + ลงทะเบียนไฟล์ที่ยังไม่มีอัตโนมัติ
 //    (ไฟล์ที่ลงทะเบียนแล้วจะข้าม ทำซ้ำได้ปลอดภัย)
@@ -609,7 +779,7 @@ function syncFromDrive(username) {
       if(file.getName().indexOf("FC_") === 0) return; // ข้ามรูปแฟลชการ์ด
       if(existingUrls[file.getUrl()]) { skipped++; return; }
       const cleanName = file.getName().replace(/\.[^.]+$/, "");
-      docSheet.appendRow([new Date(), "-", cleanName, "Sync จาก Drive", username || "system", file.getUrl(), folderPath || "ทั่วไป", file.getName(), "ทั่วไป", systemFolderId || ""]);
+      docSheet.appendRow([new Date(), "-", cleanName, "Sync จาก Drive", username || "system", file.getUrl(), folderPath || "ทั่วไป", file.getName(), "ทั่วไป", systemFolderId || "", 0]);
       existingUrls[file.getUrl()] = true;
       createdDocs++;
     }
@@ -654,6 +824,7 @@ function syncFromDrive(username) {
     let message = `นำเข้าสำเร็จ: สร้างโฟลเดอร์ ${createdFolders} อัน, ลงทะเบียนไฟล์ใหม่ ${createdDocs} ไฟล์` + (skipped > 0 ? ` (ข้ามของเดิม ${skipped})` : "");
     if(createdDocs + skipped >= MAX_ITEMS) message += ` — ถึงขีดจำกัด ${MAX_ITEMS} รายการต่อรอบ ถ้ายังมีเหลือให้กด Sync อีกครั้ง`;
     logActivity(`${username || "ผู้ใช้"} Sync จาก Drive: +${createdFolders} โฟลเดอร์, +${createdDocs} ไฟล์`);
+    if(createdDocs > 0) sendLineMessage(`🔄 Sync จาก Drive: ลงทะเบียนไฟล์ใหม่ ${createdDocs} ไฟล์ (โฟลเดอร์ใหม่ ${createdFolders} อัน)`);
     return { success: true, message: message, createdFolders: createdFolders, createdDocs: createdDocs, skipped: skipped };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
@@ -704,9 +875,10 @@ function setupAllSheets(ss) {
   if (db.getLastRow() === 0) {
     db.appendRow(["วันที่", "หมายเหตุ", "ชื่อเอกสาร", "ประเภทการเพิ่ม", "ผู้อัปโหลด", "ลิงก์ไฟล์", "หมวดหมู่/วิชา", "ชื่อไฟล์เดิม", "ประเภทเนื้อหา", "FolderID"]);
     db.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground(HEADER_BG);
-  } else if (db.getLastColumn() < 10) {
-    // ชีตเดิมที่ยังไม่มีคอลัมน์ FolderID → เติมให้ (ไม่กระทบข้อมูลเก่า)
-    db.getRange(1, 10).setValue("FolderID").setFontWeight("bold").setBackground(HEADER_BG);
+  } else {
+    // ชีตเดิม — เติมหัวคอลัมน์ที่ขาดให้ (ไม่กระทบข้อมูลเก่า)
+    if (db.getLastColumn() < 10) db.getRange(1, 10).setValue("FolderID").setFontWeight("bold").setBackground(HEADER_BG);
+    if (db.getLastColumn() < 11) db.getRange(1, 11).setValue("ViewCount").setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // 2) Users — บัญชีเข้าสู่ระบบ (⚠️ อย่าลืมเปลี่ยนรหัสผ่าน admin หลังติดตั้ง!)
@@ -734,8 +906,10 @@ function setupAllSheets(ss) {
   // 5) Flashcards — แฟลชการ์ด
   let fc = ss.getSheetByName("Flashcards") || ss.insertSheet("Flashcards");
   if (fc.getLastRow() === 0) {
-    fc.appendRow(["ID", "Username", "SubjectID", "Question", "Answer", "ImageURL"]);
-    fc.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground(HEADER_BG);
+    fc.appendRow(["ID", "Username", "SubjectID", "Question", "Answer", "ImageURL", "BoxLevel"]);
+    fc.getRange(1, 1, 1, 7).setFontWeight("bold").setBackground(HEADER_BG);
+  } else if (fc.getLastColumn() < 7) {
+    fc.getRange(1, 7).setValue("BoxLevel").setFontWeight("bold").setBackground(HEADER_BG);
   }
 
   // 6) Settings — ตั้งค่าหน้าเว็บ

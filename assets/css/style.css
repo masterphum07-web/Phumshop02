@@ -136,3 +136,24 @@ body.no-anim *::after {
   animation: none !important;
   transition: none !important;
 }
+
+/* ===== Dark Mode (สลับจากปุ่มพระจันทร์) ===== */
+body.dark { background-color: #0f172a !important; color: #e2e8f0; }
+body.dark nav { background: rgba(15, 23, 42, .9) !important; border-color: #1e293b !important; }
+body.dark .bg-white { background-color: #1e293b !important; }
+body.dark .bg-slate-50 { background-color: #0f172a !important; }
+body.dark .bg-slate-100 { background-color: #334155 !important; }
+body.dark .text-slate-800, body.dark .text-slate-700, body.dark .text-slate-600 { color: #e2e8f0 !important; }
+body.dark .text-slate-500, body.dark .text-slate-400, body.dark .text-slate-300 { color: #94a3b8 !important; }
+body.dark .text-slate-900 { color: #f1f5f9 !important; }
+body.dark [class*="border-slate-2"], body.dark [class*="border-slate-1"], body.dark [class*="border-slate-3"] { border-color: #334155 !important; }
+body.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1e293b !important; }
+body.dark input, body.dark select, body.dark textarea { color: #e2e8f0; background-color: #0f172a; }
+body.dark input::placeholder, body.dark textarea::placeholder { color: #64748b; }
+body.dark .bg-white\/80 { background-color: rgba(30, 41, 59, .9) !important; }
+body.dark .bg-white\/50 { background-color: rgba(30, 41, 59, .5) !important; }
+body.dark .bg-white\/95 { background-color: rgba(30, 41, 59, .95) !important; }
+body.dark .bg-white\/90 { background-color: rgba(30, 41, 59, .9) !important; }
+body.dark .bg-white\/60 { background-color: rgba(30, 41, 59, .6) !important; }
+body.dark .flashcard-back { background-color: #1e293b !important; border-color: #4c1d95 !important; }
+body.dark #bannerTitle { background: linear-gradient(120deg, #f1f5f9 0%, #a5b4fc 38%, #d8b4fe 62%, #67e8f9 84%, #f1f5f9 100%) !important; background-size: 220% auto; -webkit-background-clip: text; background-clip: text; color: transparent; }

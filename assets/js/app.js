@@ -9,9 +9,58 @@ let appState = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  initDarkMode();
   refreshData();
   setupUploadMode();
+  setupDragDrop();
 });
+
+// ---------------------------------------------------
+// Dark Mode
+// ---------------------------------------------------
+function initDarkMode() {
+  const saved = localStorage.getItem('docHubDark');
+  const prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if(saved === '1' || (!saved && prefers)) document.body.classList.add('dark');
+  updateDarkIcon();
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('docHubDark', document.body.classList.contains('dark') ? '1' : '0');
+  updateDarkIcon();
+}
+
+function updateDarkIcon() {
+  const btn = document.getElementById('darkModeBtn');
+  if(!btn) return;
+  btn.innerHTML = document.body.classList.contains('dark') ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+}
+
+// ---------------------------------------------------
+// Drag & Drop อัปโหลดไฟล์
+// ---------------------------------------------------
+function setupDragDrop() {
+  const dz = document.querySelector('#sectionFileUpload .border-dashed');
+  if(!dz) return;
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault();
+    dz.classList.add('border-blue-500', 'bg-blue-50');
+  }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault();
+    dz.classList.remove('border-blue-500', 'bg-blue-50');
+  }));
+  dz.addEventListener('drop', e => {
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if(!files || files.length === 0) return;
+    const dt = new DataTransfer();
+    for(const f of files) dt.items.add(f);
+    const input = document.getElementById('fileInput');
+    input.files = dt.files;
+    handleFileSelect({ target: input });
+  });
+}
 
 function callAPI(action, payload = {}) {
   payload.action = action;
@@ -81,7 +130,9 @@ function applyInitialData(res) {
     document.getElementById('settingAnimations').checked = settings.animations_enabled !== 'false';
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
-  renderFolderView();
+  renderFolderView(); renderPopular();
+  const lt = document.getElementById('lineTokenInput'); if(lt) lt.value = settings.line_token || '';
+  const ltt = document.getElementById('lineTargetInput'); if(ltt) ltt.value = settings.line_target || '';
   if(appState.username && appState.role === 'admin') updateDashboardStats();
 }
 
@@ -179,7 +230,7 @@ function filterDocuments() {
   
   const tb = document.getElementById('docTableBody');
   if(docs.length === 0) {
-    tb.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-slate-400 font-medium">ไม่พบเอกสารที่ค้นหา</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-400 font-medium">ไม่พบเอกสารที่ค้นหา</td></tr>`;
     return;
   }
   
@@ -194,12 +245,106 @@ function filterDocuments() {
       </td>
       <td class="py-3 px-2 text-slate-600">${d.uploader}</td>
       <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm">${d.category}</span></td>
-      <td class="py-3 px-4 text-right">
-        <button onclick="openIframeModal('${d.fileUrl}', '${d.title}')" class="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
+      <td class="py-3 px-2 text-slate-500 hidden md:table-cell"><i class="fa-solid fa-eye mr-1 text-slate-300"></i>${d.views || 0}</td>
+      <td class="py-3 px-4 text-right whitespace-nowrap">
+        <button onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
           เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
         </button>
+        <button onclick="shareDocToLine('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-[#06C755] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition align-middle" title="แชร์ผ่าน LINE"><i class="fa-brands fa-line"></i></button>
+        <button onclick="openDocMenu('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition align-middle" title="จัดการไฟล์"><i class="fa-solid fa-ellipsis-vertical"></i></button>
       </td>
     </tr>
+  `).join('');
+}
+
+// ---------------------------------------------------
+// จัดการเอกสาร: เมนู / แก้ชื่อ / ย้าย / ลบ / แชร์ไลน์
+// ---------------------------------------------------
+function openDocMenu(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  Swal.fire({
+    title: d.title.length > 30 ? d.title.substring(0, 30) + '...' : d.title,
+    input: 'select',
+    inputOptions: { rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', delete: '🗑️  ลบเอกสาร' },
+    inputPlaceholder: 'เลือกการดำเนินการ',
+    showCancelButton: true,
+    confirmButtonText: 'ดำเนินการ',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: '#2563eb'
+  }).then(r => {
+    if(!r.isConfirmed || !r.value) return;
+    if(r.value === 'rename') renameDocumentUI(docId);
+    else if(r.value === 'move') moveDocumentUI(docId);
+    else deleteDocumentUI(docId);
+  });
+}
+
+function renameDocumentUI(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  Swal.fire({ title: 'แก้ชื่อเอกสาร', input: 'text', inputValue: d.title, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#2563eb' }).then(r => {
+    if(!r.isConfirmed || !r.value || r.value.trim() === '' || r.value === d.title) return;
+    fetchWithTimeout(API_URL + `?action=renameDocument&docId=${docId}&newTitle=${encodeURIComponent(r.value.trim())}&username=${encodeURIComponent(appState.username || 'guest')}`, 15000)
+      .then(x => x.json()).then(res => {
+        if(res.success) { Swal.fire('สำเร็จ', 'แก้ชื่อเรียบร้อย', 'success'); refreshData(true); }
+        else Swal.fire('ไม่สำเร็จ', res.message, 'error');
+      });
+  });
+}
+
+function moveDocumentUI(docId) {
+  if(appState.folders.length === 0) return Swal.fire('ยังไม่มีโฟลเดอร์', 'สร้างโฟลเดอร์ก่อนที่แท็บคลังโฟลเดอร์', 'info');
+  const opts = {};
+  appState.folders.forEach(f => { opts[f.id] = folderPathOf(f.id); });
+  Swal.fire({ title: 'ย้ายไปโฟลเดอร์', input: 'select', inputOptions: opts, inputPlaceholder: 'เลือกโฟลเดอร์ปลายทาง', showCancelButton: true, confirmButtonText: 'ย้าย', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#2563eb' }).then(r => {
+    if(!r.isConfirmed || !r.value) return;
+    fetchWithTimeout(API_URL + `?action=moveDocument&docId=${docId}&newFolderId=${encodeURIComponent(r.value)}&username=${encodeURIComponent(appState.username || 'guest')}`, 15000)
+      .then(x => x.json()).then(res => {
+        if(res.success) { Swal.fire('สำเร็จ', 'ย้ายเรียบร้อย', 'success'); refreshData(true); }
+        else Swal.fire('ไม่สำเร็จ', res.message, 'error');
+      });
+  });
+}
+
+function deleteDocumentUI(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  Swal.fire({ title: 'ลบเอกสาร?', html: `"${d.title.length > 40 ? d.title.substring(0, 40) + '...' : d.title}" จะถูกลบออกจากระบบ<br>(ไฟล์ใน Drive จะถูกย้ายไปถังขยะ)`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบทิ้ง', cancelButtonText: 'ยกเลิก' }).then(r => {
+    if(!r.isConfirmed) return;
+    fetchWithTimeout(API_URL + `?action=deleteDocument&docId=${docId}&username=${encodeURIComponent(appState.username || 'guest')}`, 15000)
+      .then(x => x.json()).then(res => {
+        if(res.success) { Swal.fire('ลบแล้ว', '', 'success'); refreshData(true); }
+        else Swal.fire('ลบไม่ได้', res.message, 'error');
+      });
+  });
+}
+
+function shareDocToLine(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  const url = 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(d.fileUrl) + '&text=' + encodeURIComponent('📎 ' + d.title);
+  window.open(url, '_blank', 'noopener');
+}
+
+// ไฟล์ยอดนิยม
+function renderPopular() {
+  const sec = document.getElementById('popularSection');
+  const list = document.getElementById('popularList');
+  if(!sec || !list) return;
+  const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+  const top = [...appState.documents].filter(d => (d.views || 0) > 0).sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
+  if(top.length === 0) { sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  list.innerHTML = top.map((d, i) => `
+    <div onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-lg hover:border-orange-300 transition cursor-pointer hover:-translate-y-1">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xl">${medals[i] || '📄'}</span>
+        <span class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full"><i class="fa-solid fa-eye mr-1"></i>${d.views || 0}</span>
+      </div>
+      <p class="font-bold text-slate-700 text-xs leading-snug line-clamp-2" title="${d.title}">${d.title}</p>
+      <p class="text-[10px] text-slate-400 mt-1.5 truncate">${d.uploader} · ${d.category || ''}</p>
+    </div>
   `).join('');
 }
 
@@ -249,7 +394,9 @@ function renderFlashcards() {
     return;
   }
   
-  currentFcArray = appState.flashcards.filter(f => f.subject.toLowerCase() === subj.toLowerCase());
+  currentFcArray = appState.flashcards
+    .filter(f => f.subject.toLowerCase() === subj.toLowerCase())
+    .sort((a, b) => (a.box || 0) - (b.box || 0)); // การ์ดที่ยังไม่แม่นโผล่ก่อน
   
   if(currentFcArray.length === 0) {
     grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 text-xs font-medium border-2 border-dashed border-slate-200 rounded-2xl w-full">ยังไม่มีแฟลชการ์ดในวิชา ${subj}</div>`;
@@ -294,6 +441,20 @@ function nextFc() {
   }
 }
 
+function reviewCard(id, remembered) {
+  const f = appState.flashcards.find(x => x.id === id);
+  if(f) f.box = remembered ? Math.min((f.box || 0) + 1, 5) : 0;
+  fetch(API_URL + `?action=reviewFlashcard&id=${encodeURIComponent(id)}&remembered=${remembered}`).catch(() => {});
+  if(currentFcIndex < currentFcArray.length - 1) {
+    nextFc();
+  } else {
+    // การ์ดสุดท้าย — กลับไปเริ่มชุดใหม่ที่จัดเรียงความแม่นใหม่
+    currentFcArray.sort((a, b) => (a.box || 0) - (b.box || 0));
+    currentFcIndex = 0;
+    renderCurrentFc();
+  }
+}
+
 function renderCurrentFc() {
   const f = currentFcArray[currentFcIndex];
   
@@ -327,9 +488,14 @@ function renderCurrentFc() {
         
         <!-- Back -->
         <div class="flashcard-back absolute w-full h-full bg-white border-4 border-fuchsia-100 rounded-2xl p-6 sm:p-10 flex flex-col justify-center items-center text-center shadow-2xl overflow-hidden">
+          <p class="text-[10px] font-bold text-fuchsia-400 tracking-widest uppercase mb-2">ระดับความแม่น ${'●'.repeat(f.box || 0)}${'○'.repeat(5 - (f.box || 0))}</p>
           <p class="font-medium text-slate-700 text-xl sm:text-2xl overflow-y-auto w-full">${f.answer}</p>
           ${imgTag}
-          <p class="text-xs text-slate-400 absolute bottom-4"><i class="fa-solid fa-hand-pointer mr-2"></i> แตะเพื่อกลับไปคำถาม</p>
+          <div class="flex gap-3 mt-6" onclick="event.stopPropagation()">
+            <button onclick="reviewCard('${f.id}', true)" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-xl shadow-md transition"><i class="fa-regular fa-face-smile-beam mr-1"></i> จำได้!</button>
+            <button onclick="reviewCard('${f.id}', false)" class="px-5 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm rounded-xl shadow-md transition"><i class="fa-regular fa-face-dizzy mr-1"></i> ยังไม่แม่น</button>
+          </div>
+          <p class="text-xs text-slate-400 absolute bottom-3"><i class="fa-solid fa-hand-pointer mr-2"></i> แตะกลางการ์ดเพื่อกลับไปคำถาม</p>
         </div>
         
       </div>
@@ -598,20 +764,22 @@ function switchTab(tabId) {
     document.getElementById(id).classList.add('hidden');
     document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).classList.replace('text-blue-600', 'text-slate-500');
     document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).classList.replace('bg-white', 'bg-transparent');
-    
-    document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1) + 'Mobile').classList.replace('bg-blue-50', 'bg-transparent');
-    document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1) + 'Mobile').classList.replace('text-blue-600', 'text-slate-500');
   });
-  
+
+  // แถบนำทางล่าง (มือถือ)
+  const bnavMap = { tabMain: 'bnavMain', tabFolders: 'bnavFolders', tabStudy: 'bnavStudy', tabDashboard: 'bnavDashboard' };
+  Object.values(bnavMap).forEach(id => {
+    const el = document.getElementById(id);
+    if(el) { el.classList.remove('text-blue-600'); el.classList.add('text-slate-400'); }
+  });
+  const activeBnav = document.getElementById(bnavMap[tabId]);
+  if(activeBnav) { activeBnav.classList.add('text-blue-600'); activeBnav.classList.remove('text-slate-400'); }
+
   document.getElementById(tabId).classList.remove('hidden');
-  
+
   const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
   activeBtn.classList.replace('text-slate-500', 'text-blue-600');
   activeBtn.classList.replace('bg-transparent', 'bg-white');
-  
-  const activeBtnM = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1) + 'Mobile');
-  activeBtnM.classList.replace('bg-transparent', 'bg-blue-50');
-  activeBtnM.classList.replace('text-slate-500', 'text-blue-600');
 }
 
 // ---------------------------------------------------
@@ -903,7 +1071,13 @@ function applyThemePreset(primary, accent, bg) {
 // ---------------------------------------------------
 // Iframe Modal Logic
 // ---------------------------------------------------
-function openIframeModal(url, title) {
+function openIframeModal(url, title, docId) {
+  // นับยอดวิว (ถ้าเป็นเอกสารในระบบ)
+  if(docId) {
+    const d = appState.documents.find(x => x.id === docId);
+    if(d) { d.views = (d.views || 0) + 1; renderPopular(); filterDocuments(); }
+    fetch(API_URL + `?action=trackView&docId=${docId}`).catch(() => {});
+  }
   // เว็บไซต์ภายนอก เช่น AI Studio/ChatGPT มักบล็อกการแสดงผลใน iframe
   // จึงเปิดแท็บใหม่โดยตรงแทน เพื่อไม่ให้ผู้ใช้เห็นหน้าว่างหรือไฟล์เสีย
   if (isExternalPageUrl(url)) {
@@ -1220,11 +1394,24 @@ function renderShareModal() {
       <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-700 flex items-center gap-2">
         <i class="fa-solid fa-circle-check"></i> เปิดแชร์อยู่ — คนที่มีลิงก์ดูได้
       </div>
-      <div class="flex gap-2">
-        <input type="text" readonly value="${link}" id="shareLinkInput" class="flex-1 px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-600 outline-none">
-        <button onclick="copyShareLink()" class="px-4 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition"><i class="fa-solid fa-copy mr-1"></i>คัดลอก</button>
+      <div class="flex gap-3 items-center">
+        <div class="p-2.5 bg-white rounded-xl border border-slate-200 shrink-0">
+          <div id="shareQrBox"></div>
+          <p class="text-[9px] text-slate-400 font-bold text-center mt-1">สแกน QR</p>
+        </div>
+        <div class="flex-1 space-y-2 min-w-0">
+          <div class="flex gap-2">
+            <input type="text" readonly value="${link}" id="shareLinkInput" class="flex-1 min-w-0 px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-600 outline-none">
+            <button onclick="copyShareLink()" class="px-4 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition shrink-0"><i class="fa-solid fa-copy mr-1"></i>คัดลอก</button>
+          </div>
+          <a href="https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(link)}" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full py-2.5 bg-[#06C755] text-white font-bold text-xs rounded-xl shadow-md hover:bg-emerald-500 transition"><i class="fa-brands fa-line text-base"></i> แชร์ลิงก์นี้ผ่าน LINE</a>
+        </div>
       </div>
       <button onclick="toggleFolderShare(false)" class="w-full py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-xs font-bold transition"><i class="fa-solid fa-ban mr-1"></i>ปิดการแชร์ (ลิงก์จะใช้ไม่ได้ทันที)</button>`;
+    const qrEl = document.getElementById('shareQrBox');
+    if(qrEl && typeof QRCode !== 'undefined') {
+      new QRCode(qrEl, { text: link, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+    }
   } else {
     area.innerHTML = `
       <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 flex items-center gap-2">
@@ -1241,6 +1428,25 @@ function toggleFolderShare(enabled) {
       return refreshData(true).then(() => renderShareModal());
     })
     .catch(() => refreshData(true).then(() => renderShareModal()));
+}
+
+// ---------------------------------------------------
+// ตั้งค่าแจ้งเตือน LINE
+// ---------------------------------------------------
+function saveLineConfig() {
+  const token = document.getElementById('lineTokenInput').value.trim();
+  const target = document.getElementById('lineTargetInput').value.trim();
+  fetchWithTimeout(API_URL + `?action=setLineConfig&token=${encodeURIComponent(token)}&target=${encodeURIComponent(target)}&username=${encodeURIComponent(appState.username || 'admin')}`, 15000)
+    .then(r => r.json()).then(res => {
+      Swal.fire(res.success ? 'สำเร็จ' : 'ไม่สำเร็จ', res.message || '', res.success ? 'success' : 'error');
+    }).catch(() => Swal.fire('เชื่อมต่อไม่ได้', 'ลองอีกครั้ง', 'warning'));
+}
+
+function testLineMsg() {
+  Swal.fire({ title: 'กำลังส่ง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  fetchWithTimeout(API_URL + `?action=testLineMessage`, 25000).then(r => r.json()).then(res => {
+    Swal.fire(res.success ? 'ส่งแล้ว!' : 'ส่งไม่สำเร็จ', res.message, res.success ? 'success' : 'warning');
+  }).catch(() => Swal.fire('หมดเวลา', 'ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง', 'warning'));
 }
 
 function copyShareLink() {
