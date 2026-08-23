@@ -7,8 +7,9 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&family=Kanit:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
       :root { --ui-primary: #2563eb; --ui-accent: #9333ea; }
       * { scrollbar-width: thin; scrollbar-color: #a5b4fc #eef2ff; }
@@ -407,7 +408,7 @@
            </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div class="grid grid-cols-2 xl:grid-cols-4 gap-6">
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
             <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-file-lines"></i></div>
             <div>
@@ -416,15 +417,36 @@
             </div>
           </div>
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-list-check"></i></div>
-            <div><p class="text-xs font-bold text-slate-400 uppercase">งานทั้งหมด</p><p class="text-3xl font-black text-slate-800" id="statTotalTasks">0</p></div>
+            <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-folder-tree"></i></div>
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase">โฟลเดอร์ทั้งหมด</p>
+              <p class="text-3xl font-black text-slate-800" id="statTotalFolders">0</p>
+            </div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div class="w-14 h-14 bg-cyan-50 text-cyan-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase">อัปโหลด 7 วันนี้</p>
+              <p class="text-3xl font-black text-slate-800" id="statWeekUploads">0</p>
+            </div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-users"></i></div>
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase">ผู้อัปโหลด</p>
+              <p class="text-3xl font-black text-slate-800" id="statContributors">0</p>
+            </div>
           </div>
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
             <div class="w-14 h-14 bg-fuchsia-50 text-fuchsia-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-layer-group"></i></div>
             <div>
-              <p class="text-xs font-bold text-slate-400 uppercase">แฟลชการ์ดทั้งหมด</p>
+              <p class="text-xs font-bold text-slate-400 uppercase">แฟลชการ์ด</p>
               <p class="text-3xl font-black text-slate-800" id="statTotalFC">0</p>
             </div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-list-check"></i></div>
+            <div><p class="text-xs font-bold text-slate-400 uppercase">งานทั้งหมด</p><p class="text-3xl font-black text-slate-800" id="statTotalTasks">0</p></div>
           </div>
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
             <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-book"></i></div>
@@ -433,23 +455,47 @@
               <p class="text-3xl font-black text-slate-800" id="statTotalSubj">0</p>
             </div>
           </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div class="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-hard-drive"></i></div>
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase">พื้นที่ Drive</p>
+              <p class="text-3xl font-black text-slate-800" id="statDriveUsage">-</p>
+            </div>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <div class="flex items-center justify-between mb-5">
-              <div><h3 class="text-base font-black text-slate-800">เอกสารแยกตามวิชา</h3><p class="text-xs text-slate-400 mt-1">ภาพรวมคลังเอกสารแต่ละวิชา</p></div>
+              <div><h3 class="text-base font-black text-slate-800">เอกสารแยกตามวิชา/โฟลเดอร์</h3><p class="text-xs text-slate-400 mt-1">10 อันดับสูงสุด</p></div>
               <i class="fa-solid fa-chart-column text-indigo-400 text-xl"></i>
             </div>
-            <div id="documentsBySubjectChart" class="space-y-4"></div>
+            <div class="h-72 flex items-center justify-center"><canvas id="chartSubjects"></canvas></div>
           </div>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <div class="flex items-center justify-between mb-5">
               <div><h3 class="text-base font-black text-slate-800">ประเภทเนื้อหา</h3><p class="text-xs text-slate-400 mt-1">สัดส่วนเอกสารในระบบ</p></div>
               <i class="fa-solid fa-chart-pie text-fuchsia-400 text-xl"></i>
             </div>
-            <div id="documentsByTypeChart" class="space-y-4"></div>
+            <div class="h-72 flex items-center justify-center"><canvas id="chartTypes"></canvas></div>
           </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-5">
+            <div><h3 class="text-base font-black text-slate-800">กราฟการอัปโหลด 14 วันล่าสุด</h3><p class="text-xs text-slate-400 mt-1">แนวโน้มการเพิ่มเอกสารเข้าระบบ</p></div>
+            <i class="fa-solid fa-chart-line text-emerald-400 text-xl"></i>
+          </div>
+          <div class="h-56"><canvas id="chartTimeline"></canvas></div>
+        </div>
+
+        <!-- อัปโหลดล่าสุด -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-bolt text-amber-500"></i> อัปโหลดล่าสุด</h3>
+            <span class="text-xs font-bold text-slate-400">6 รายการ</span>
+          </div>
+          <div id="recentUploads" class="space-y-2 text-sm pr-2"><p class="text-slate-400 text-center">กำลังโหลด...</p></div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -476,6 +522,35 @@
         
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mt-8">
           <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-4"><i class="fa-solid fa-paintbrush text-pink-500"></i> ปรับแต่งหน้าเว็บ</h3>
+
+          <p class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">ธีมสำเร็จรูป (กดเพื่อเติมสีให้อัตโนมัติ)</p>
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+            <button onclick="applyThemePreset('#2563eb','#9333ea','#f8fafc')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-blue-400 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-blue-600 to-purple-600 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-blue-600">คลาสสิก</p>
+            </button>
+            <button onclick="applyThemePreset('#059669','#0d9488','#f0fdfa')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-emerald-400 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-emerald-600">มรกต</p>
+            </button>
+            <button onclick="applyThemePreset('#db2777','#f43f5e','#fff1f2')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-pink-400 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-pink-600 to-rose-500 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-pink-600">หวานซ่า</p>
+            </button>
+            <button onclick="applyThemePreset('#ea580c','#f59e0b','#fffbeb')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-orange-400 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-orange-600 to-amber-500 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-orange-600">พระอาทิตย์</p>
+            </button>
+            <button onclick="applyThemePreset('#0f172a','#475569','#e2e8f0')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-slate-500 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-slate-900 to-slate-500 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-slate-700">มืดมิด</p>
+            </button>
+            <button onclick="applyThemePreset('#7c3aed','#06b6d4','#f5f3ff')" class="group p-2 rounded-xl border-2 border-slate-200 hover:border-violet-400 transition">
+              <div class="h-8 rounded-lg mb-1.5 bg-gradient-to-r from-violet-600 to-cyan-500 shadow-inner"></div>
+              <p class="text-[10px] font-bold text-slate-600 group-hover:text-violet-600">อวกาศ</p>
+            </button>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">หัวข้อหลัก (Banner Title)</label>
@@ -505,8 +580,31 @@
               <label class="block text-xs font-bold text-slate-500 mb-1">สีพื้นหลังเว็บ</label>
               <input type="color" id="settingBackgroundColor" value="#f8fafc" class="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
             </div>
-            <label class="flex items-center gap-2 text-sm font-bold text-slate-600 md:col-span-2 cursor-pointer">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">ฟอนต์ทั้งเว็บ</label>
+              <select id="settingSiteFont" class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-pink-400 outline-none transition cursor-pointer">
+                <option value="Prompt">Prompt (ปัจจุบัน)</option>
+                <option value="Kanit">Kanit — หนาทันสมัย</option>
+                <option value="Sarabun">Sarabun — อ่านง่ายสบายตา</option>
+                <option value="Mitr">Mitr — กลมน่ารัก</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">สไตล์มุมโค้ง</label>
+              <select id="settingCornerStyle" class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-pink-400 outline-none transition cursor-pointer">
+                <option value="soft">โค้งมนนุ่มนวล (แบบ iOS)</option>
+                <option value="square">เหลี่ยมคมแบบมินิมอล</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">ข้อความท้ายเว็บ (Footer)</label>
+              <input type="text" id="settingFooterText" placeholder="เช่น © 2026 ห้องเรียนพร้อมใช้..." class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-pink-400 outline-none transition">
+            </div>
+            <label class="flex items-center gap-2 text-sm font-bold text-slate-600 cursor-pointer">
               <input type="checkbox" id="settingShowBanner" checked class="w-4 h-4 accent-pink-500"> แสดงแบนเนอร์หน้าแรก
+            </label>
+            <label class="flex items-center gap-2 text-sm font-bold text-slate-600 cursor-pointer">
+              <input type="checkbox" id="settingAnimations" checked class="w-4 h-4 accent-pink-500"> เปิดอนิเมชัน/เอฟเฟกต์
             </label>
           </div>
           <div class="mt-5 text-right">
@@ -518,6 +616,11 @@
     </main>
   </div>
   
+  <!-- Footer -->
+  <footer class="border-t border-slate-200/70 bg-white/50 backdrop-blur-sm py-6 mt-4">
+    <p class="text-center text-xs text-slate-400 font-medium px-4" id="footerTextEl">📚 DOC HUB — ระบบคลังเอกสาร</p>
+  </footer>
+
   <!-- Custom Login Modal -->
   <div id="loginModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity" onclick="closeLoginModal()"></div>

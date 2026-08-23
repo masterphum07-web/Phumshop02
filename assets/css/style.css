@@ -122,7 +122,17 @@ button[class*="from-fuchsia-600"]:not(:disabled), button[class*="from-pink-500"]
 .fa-gear { transition: transform .5s ease; }
 button:hover .fa-gear { transform: rotate(90deg); }
 
-/* ช่องค้นหาเรืองแสงตอนพิมพ์ */
-#searchInput:focus {
-  box-shadow: 0 0 0 4px rgba(99,102,241,.14), 0 8px 20px -6px rgba(15,23,42,.15);
+/* ===== สไตล์จากการตั้งค่าแอดมิน ===== */
+
+/* มุมเหลี่ยมแบบมินิมอล */
+body.style-square .rounded-3xl { border-radius: .5rem !important; }
+body.style-square .rounded-2xl { border-radius: .375rem !important; }
+body.style-square .rounded-xl { border-radius: .25rem !important; }
+
+/* ปิดอนิเมชันทั้งเว็บ */
+body.no-anim *,
+body.no-anim *::before,
+body.no-anim *::after {
+  animation: none !important;
+  transition: none !important;
 }

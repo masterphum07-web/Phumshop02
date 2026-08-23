@@ -89,6 +89,8 @@ function handleRequest(data) {
     return getFolderByToken(data.token);
   } else if (action === 'syncFromDrive') {
     return syncFromDrive(data.username);
+  } else if (action === 'getDriveUsage') {
+    return getDriveUsage();
   } else {
     return { success: false, error: 'Action not found' };
   }
@@ -105,7 +107,8 @@ function getInitialData() {
     let settings = {
       bannerTitle: "DOC HUB", bannerSubtitle: "ระบบจัดเก็บเอกสารและสำรองข้อมูล",
       primaryColor: "#2563eb", accentColor: "#9333ea", backgroundColor: "#f8fafc",
-      bannerButtonText: "เริ่มต้นใช้งาน", showBanner: "true", siteIcon: "fa-layer-group"
+      bannerButtonText: "เริ่มต้นใช้งาน", showBanner: "true", siteIcon: "fa-layer-group",
+      siteFont: "Prompt", cornerStyle: "soft", animationsEnabled: "true", footerText: ""
     };
     const settingsSheet = ss.getSheetByName("Settings");
     if(settingsSheet) {
@@ -200,7 +203,9 @@ function getInitialData() {
       header_title: settings.bannerTitle, cta_text: settings.bannerSubtitle,
       primary_color: settings.primaryColor, accent_color: settings.accentColor,
       background_color: settings.backgroundColor, banner_button_text: settings.bannerButtonText,
-      show_banner: settings.showBanner, site_icon: settings.siteIcon
+      show_banner: settings.showBanner, site_icon: settings.siteIcon,
+      site_font: settings.siteFont, corner_style: settings.cornerStyle,
+      animations_enabled: settings.animationsEnabled, footer_text: settings.footerText
     }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
@@ -638,6 +643,27 @@ function syncFromDrive(username) {
     logActivity(`${username || "ผู้ใช้"} Sync จาก Drive: +${createdFolders} โฟลเดอร์, +${createdDocs} ไฟล์`);
     return { success: true, message: message, createdFolders: createdFolders, createdDocs: createdDocs, skipped: skipped };
   } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// ขนาดพื้นที่ Drive ที่ใช้ไป (สำหรับสถิติแดชบอร์ด)
+function getDriveUsage() {
+  try {
+    const root = DriveApp.getFolderById(FOLDER_ID);
+    let total = 0, count = 0;
+    const stack = [root];
+    while(stack.length > 0 && count < 1500) {
+      const folder = stack.pop();
+      const files = folder.getFiles();
+      while(files.hasNext() && count < 1500) {
+        const file = files.next();
+        total += file.getSize() || 0;
+        count++;
+      }
+      const subs = folder.getFolders();
+      while(subs.hasNext()) stack.push(subs.next());
+    }
+    return { success: true, files: count, bytes: total };
+  } catch(e) { return { success: false, files: 0, bytes: 0 }; }
 }
 
 // ------------------------------------------------------------------

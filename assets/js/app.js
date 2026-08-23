@@ -75,6 +75,10 @@ function applyInitialData(res) {
     document.getElementById('settingBannerButtonText').value = settings.banner_button_text || 'เริ่มต้นใช้งาน';
     document.getElementById('settingShowBanner').checked = settings.show_banner !== 'false';
     document.getElementById('settingSiteIcon').value = settings.site_icon || 'fa-layer-group';
+    document.getElementById('settingSiteFont').value = settings.site_font || 'Prompt';
+    document.getElementById('settingCornerStyle').value = settings.corner_style || 'soft';
+    document.getElementById('settingFooterText').value = settings.footer_text || '';
+    document.getElementById('settingAnimations').checked = settings.animations_enabled !== 'false';
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
   renderFolderView();
@@ -656,27 +660,126 @@ function updateDashboardStats() {
   document.getElementById('statTotalFC').innerText = appState.flashcards.length;
   document.getElementById('statTotalSubj').innerText = appState.categories.length;
   document.getElementById('statTotalTasks').innerText = appState.tasks.length;
+  document.getElementById('statTotalFolders').innerText = appState.folders.length;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  document.getElementById('statWeekUploads').innerText = appState.documents.filter(d => {
+    const t = new Date(d.uploadDate).getTime();
+    return !isNaN(t) && t >= weekAgo;
+  }).length;
+  document.getElementById('statContributors').innerText = new Set(appState.documents.map(d => d.uploader)).size;
   renderDashboardCharts();
+  renderRecentUploads();
   fetchLogs();
+  fetchDriveUsage();
+}
+
+// ---------- กราฟมืออาชีพด้วย Chart.js ----------
+window._charts = window._charts || {};
+
+function makeChart(id, config) {
+  const el = document.getElementById(id);
+  if(!el || typeof Chart === 'undefined') return;
+  if(window._charts[id]) window._charts[id].destroy();
+  window._charts[id] = new Chart(el, config);
 }
 
 function renderDashboardCharts() {
+  const FONT = "'Prompt', sans-serif";
+  if(typeof Chart !== 'undefined') Chart.defaults.font.family = FONT;
+
+  // 1) แท่งแนวนอน: เอกสารแยกตามวิชา/โฟลเดอร์ (10 อันดับ)
   const subjectCounts = {};
   appState.documents.forEach(doc => { const key = doc.category || 'ทั่วไป'; subjectCounts[key] = (subjectCounts[key] || 0) + 1; });
-  const subjectEntries = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
-  const maxSubject = Math.max(...subjectEntries.map(item => item[1]), 1);
-  const subjectChart = document.getElementById('documentsBySubjectChart');
-  if (subjectChart) subjectChart.innerHTML = subjectEntries.length ? subjectEntries.slice(0, 8).map(([name, count]) => `
-    <div class="group"><div class="flex justify-between text-xs font-bold mb-1.5"><span class="text-slate-600 truncate pr-3">${name}</span><span class="text-indigo-600">${count}</span></div>
-      <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-700 group-hover:from-indigo-500 group-hover:to-fuchsia-500" style="width:${Math.max(8, count / maxSubject * 100)}%"></div></div></div>`).join('') : '<p class="text-sm text-slate-400 text-center py-8">ยังไม่มีข้อมูลเอกสาร</p>';
+  const subjEntries = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  makeChart('chartSubjects', {
+    type: 'bar',
+    data: {
+      labels: subjEntries.map(e => e[0]),
+      datasets: [{ data: subjEntries.map(e => e[1]), backgroundColor: 'rgba(99,102,241,.85)', hoverBackgroundColor: '#4f46e5', borderRadius: 8, borderSkipped: false }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: '#f1f5f9' }, ticks: { precision: 0 } }, y: { grid: { display: false } } }
+    }
+  });
 
+  // 2) โดนัท: สัดส่วนประเภทเนื้อหา
   const typeCounts = {};
   appState.documents.forEach(doc => { const key = doc.docType || 'ทั่วไป'; typeCounts[key] = (typeCounts[key] || 0) + 1; });
-  const colors = ['bg-blue-500', 'bg-fuchsia-500', 'bg-amber-500', 'bg-emerald-500', 'bg-slate-400'];
-  const total = Math.max(appState.documents.length, 1);
-  const typeChart = document.getElementById('documentsByTypeChart');
-  if (typeChart) typeChart.innerHTML = Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).map(([name, count], index) => `
-    <div class="flex items-center gap-3"><span class="w-3 h-3 rounded-full ${colors[index % colors.length]}"></span><span class="flex-1 text-sm font-bold text-slate-600">${name}</span><span class="text-sm font-black text-slate-800">${count}</span><span class="text-[10px] font-bold text-slate-400 w-10 text-right">${Math.round(count / total * 100)}%</span></div>`).join('') || '<p class="text-sm text-slate-400 text-center py-8">ยังไม่มีข้อมูล</p>';
+  const typeColors = ['#6366f1', '#d946ef', '#f59e0b', '#10b981', '#38bdf8', '#f43f5e', '#a8a29e'];
+  makeChart('chartTypes', {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(typeCounts),
+      datasets: [{ data: Object.values(typeCounts), backgroundColor: typeColors, borderWidth: 3, borderColor: '#ffffff', hoverOffset: 10 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14, font: { family: FONT, weight: '600' } } } }
+    }
+  });
+
+  // 3) เส้นพื้นที่: อัปโหลด 14 วันล่าสุด
+  const days = [], counts = [];
+  for(let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+    days.push(d); counts.push(0);
+  }
+  appState.documents.forEach(doc => {
+    const t = new Date(doc.uploadDate);
+    if(isNaN(t)) return;
+    t.setHours(0, 0, 0, 0);
+    const idx = days.findIndex(x => x.getTime() === t.getTime());
+    if(idx > -1) counts[idx]++;
+  });
+  makeChart('chartTimeline', {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.getDate() + '/' + (d.getMonth() + 1)),
+      datasets: [{ data: counts, borderColor: '#059669', backgroundColor: 'rgba(5,150,105,.12)', fill: true, tension: .4, pointBackgroundColor: '#059669', pointRadius: 4, borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+    }
+  });
+}
+
+// ---------- อัปโหลดล่าสุด ----------
+function renderRecentUploads() {
+  const el = document.getElementById('recentUploads');
+  if(!el) return;
+  const recent = appState.documents.slice(0, 6);
+  if(recent.length === 0) {
+    el.innerHTML = '<p class="text-slate-400 text-center py-4">ยังไม่มีการอัปโหลด</p>';
+    return;
+  }
+  el.innerHTML = recent.map(d => `
+    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+      <div class="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-arrow-up"></i></div>
+      <div class="min-w-0 flex-1">
+        <p class="font-bold text-slate-700 truncate">${d.title}</p>
+        <p class="text-[11px] text-slate-400 truncate">${d.uploader} · ${d.category || '-'}</p>
+      </div>
+      <span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">${formatShortDate(d.uploadDate)}</span>
+    </div>`).join('');
+}
+
+function formatShortDate(s) {
+  const d = new Date(s);
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+}
+
+// ---------- พื้นที่ Drive ที่ใช้ไป ----------
+function fetchDriveUsage() {
+  fetchWithTimeout(API_URL + "?action=getDriveUsage", 30000).then(r => r.json()).then(res => {
+    if(!res.success) return;
+    const mb = res.bytes / 1024 / 1024;
+    document.getElementById('statDriveUsage').innerText = mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb.toFixed(1) + ' MB';
+  }).catch(() => {});
 }
 
 function fetchLogs() {
@@ -724,7 +827,11 @@ function saveSettings() {
       backgroundColor: document.getElementById('settingBackgroundColor').value,
       bannerButtonText: document.getElementById('settingBannerButtonText').value,
       showBanner: document.getElementById('settingShowBanner').checked ? 'true' : 'false',
-      siteIcon: document.getElementById('settingSiteIcon').value
+      siteIcon: document.getElementById('settingSiteIcon').value,
+      siteFont: document.getElementById('settingSiteFont').value,
+      cornerStyle: document.getElementById('settingCornerStyle').value,
+      animationsEnabled: document.getElementById('settingAnimations').checked ? 'true' : 'false',
+      footerText: document.getElementById('settingFooterText').value
     }
   };
   
@@ -743,7 +850,14 @@ function saveSettings() {
 function applySiteSettings(settings) {
   document.documentElement.style.setProperty('--site-primary', settings.primary_color || '#2563eb');
   document.documentElement.style.setProperty('--site-accent', settings.accent_color || '#9333ea');
+  document.documentElement.style.setProperty('--ui-primary', settings.primary_color || '#2563eb');
+  document.documentElement.style.setProperty('--ui-accent', settings.accent_color || '#9333ea');
   document.body.style.backgroundColor = settings.background_color || '#f8fafc';
+  if(settings.site_font) document.body.style.fontFamily = `'${settings.site_font}', 'Prompt', sans-serif`;
+  document.body.classList.toggle('style-square', settings.corner_style === 'square');
+  document.body.classList.toggle('no-anim', settings.animations_enabled === 'false');
+  const footerEl = document.getElementById('footerTextEl');
+  if(footerEl) footerEl.innerText = settings.footer_text || '📚 DOC HUB — ระบบคลังเอกสาร';
   const banner = document.getElementById('bannerTitle')?.closest('.bg-white');
   if (banner) {
     banner.style.display = settings.show_banner === 'false' ? 'none' : '';
@@ -755,6 +869,13 @@ function applySiteSettings(settings) {
     icon.className = `fa-solid ${settings.site_icon} text-lg`;
     icon.parentElement.style.background = `linear-gradient(135deg, ${settings.primary_color || '#2563eb'}, ${settings.accent_color || '#9333ea'})`;
   }
+}
+
+function applyThemePreset(primary, accent, bg) {
+  document.getElementById('settingPrimaryColor').value = primary;
+  document.getElementById('settingAccentColor').value = accent;
+  document.getElementById('settingBackgroundColor').value = bg;
+  Swal.fire({ icon: 'success', title: 'เติมธีมให้แล้ว!', text: 'อย่าลืมกด "บันทึกการตั้งค่า" ด้านล่าง', timer: 1600, showConfirmButton: false });
 }
 
 // ---------------------------------------------------
