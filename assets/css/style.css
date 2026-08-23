@@ -222,7 +222,8 @@ body.dark .swal2-html-container { color: #cbd5e1 !important; }
 body.dark .swal2-input, body.dark .swal2-select { background: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
 
 /* QR คงพื้นขาวไว้ให้สแกนได้ */
-body.dark #shareQrBox img, body.dark #shareQrBox canvas { background: #fff !important; padding: 4px; border-radius: 8px; }
+body.dark #shareQrBox img, body.dark #shareQrBox canvas,
+body.dark #fileShareQrBox img, body.dark #fileShareQrBox canvas { background: #fff !important; padding: 4px; border-radius: 8px; }
 
 /* แถบหัวโมดัลที่ใช้ไล่เฉดสีอ่อน (เช่น หน้าต่างนำเข้าจาก Drive) → โทนมืด */
 body.dark #syncModal > div { background: linear-gradient(to right, rgba(16, 185, 129, .2), rgba(13, 148, 136, .22)) !important; }

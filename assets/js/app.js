@@ -254,6 +254,7 @@ function filterDocuments() {
           เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
         </button>
         <button onclick="toggleFavorite('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded-lg transition align-middle ${isFav ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-100 hover:bg-rose-50 hover:text-rose-400'}" title="${isFav ? 'นำออกจากรายการโปรด' : 'เก็บเข้ารายการโปรด'}"><i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i></button>
+        <button onclick="openFileShare('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition align-middle" title="แชร์ไฟล์ (QR / ลิงก์)"><i class="fa-solid fa-qrcode"></i></button>
         <button onclick="shareDocToLine('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-[#06C755] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition align-middle" title="แชร์ผ่าน LINE"><i class="fa-brands fa-line"></i></button>
         <button onclick="openDocMenu('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition align-middle" title="จัดการไฟล์"><i class="fa-solid fa-ellipsis-vertical"></i></button>
       </td>
@@ -430,7 +431,7 @@ function openDocMenu(docId) {
   Swal.fire({
     title: d.title.length > 30 ? d.title.substring(0, 30) + '...' : d.title,
     input: 'select',
-    inputOptions: { rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', report: '🚨  แจ้งลิงก์เสีย', delete: '🗑️  ลบเอกสาร' },
+    inputOptions: { share: '📲  แชร์ไฟล์ (QR / ลิงก์)', rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', report: '🚨  แจ้งลิงก์เสีย', delete: '🗑️  ลบเอกสาร' },
     inputPlaceholder: 'เลือกการดำเนินการ',
     showCancelButton: true,
     confirmButtonText: 'ดำเนินการ',
@@ -438,7 +439,8 @@ function openDocMenu(docId) {
     confirmButtonColor: '#2563eb'
   }).then(r => {
     if(!r.isConfirmed || !r.value) return;
-    if(r.value === 'rename') renameDocumentUI(docId);
+    if(r.value === 'share') openFileShare(docId);
+    else if(r.value === 'rename') renameDocumentUI(docId);
     else if(r.value === 'move') moveDocumentUI(docId);
     else if(r.value === 'report') reportBrokenLinkUI(docId);
     else deleteDocumentUI(docId);
@@ -490,6 +492,41 @@ function shareDocToLine(docId) {
   if(!d) return;
   const url = 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(d.fileUrl) + '&text=' + encodeURIComponent('📎 ' + d.title);
   window.open(url, '_blank', 'noopener');
+}
+
+// ---------------------------------------------------
+// 📲 แชร์ไฟล์เดี่ยว (QR + ลิงก์ + LINE)
+// ---------------------------------------------------
+function openFileShare(docId) {
+  const d = appState.documents.find(x => x.id === docId);
+  if(!d) return;
+  window._fileShareTarget = d;
+
+  document.getElementById('fileShareTitle').innerText = d.title;
+  document.getElementById('fileShareLinkInput').value = d.fileUrl;
+  document.getElementById('fileShareLineBtn').href = 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(d.fileUrl) + '&text=' + encodeURIComponent('📎 ' + d.title);
+
+  const qrBox = document.getElementById('fileShareQrBox');
+  qrBox.innerHTML = '';
+  if(typeof QRCode !== 'undefined') {
+    new QRCode(qrBox, { text: d.fileUrl, width: 170, height: 170, correctLevel: QRCode.CorrectLevel.M });
+  } else {
+    qrBox.innerHTML = '<p class="text-xs text-slate-400 py-8">โหลดตัวสร้าง QR ไม่สำเร็จ — ใช้ปุ่มคัดลอกลิงก์ด้านล่างแทนได้</p>';
+  }
+
+  document.getElementById('fileShareModal').classList.remove('hidden');
+}
+
+function closeFileShare() {
+  document.getElementById('fileShareModal').classList.add('hidden');
+}
+
+function copyFileShareLink() {
+  const input = document.getElementById('fileShareLinkInput');
+  input.select();
+  const done = () => Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์แล้ว', timer: 1400, showConfirmButton: false });
+  if(navigator.clipboard) navigator.clipboard.writeText(input.value).then(done).catch(() => { document.execCommand('copy'); done(); });
+  else { document.execCommand('copy'); done(); }
 }
 
 // ไฟล์ยอดนิยม
@@ -1502,10 +1539,11 @@ function renderFolderView() {
         </td>
         <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${d.docType || 'ทั่วไป'}</span></td>
         <td class="py-3 px-2 text-slate-600">${d.uploader}</td>
-        <td class="py-3 px-4 text-right">
-          <button onclick="openIframeModal('${d.fileUrl}', '${d.title}')" class="inline-flex items-center gap-1.5 text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
+        <td class="py-3 px-4 text-right whitespace-nowrap">
+          <button onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="inline-flex items-center gap-1.5 text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
             เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
           </button>
+          <button onclick="openFileShare('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition align-middle" title="แชร์ไฟล์ (QR / ลิงก์)"><i class="fa-solid fa-qrcode"></i></button>
         </td>
       </tr>
     `).join('');

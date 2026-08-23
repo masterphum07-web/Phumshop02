@@ -65,7 +65,7 @@
     </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <link rel="stylesheet" href="assets/css/style.css?v=3">
+  <link rel="stylesheet" href="assets/css/style.css?v=4">
 </head>
 <body class="text-slate-800 antialiased bg-slate-50 min-h-screen flex flex-col">
 
@@ -874,6 +874,28 @@
     </div>
   </div>
 
+  <!-- File Share Modal (QR + Link) -->
+  <div id="fileShareModal" class="fixed inset-0 z-[66] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+        <h3 class="font-bold text-slate-800"><i class="fa-solid fa-qrcode text-indigo-500 mr-2"></i>แชร์ไฟล์นี้</h3>
+        <button onclick="closeFileShare()" class="w-8 h-8 flex justify-center items-center rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <p class="text-sm font-bold text-slate-700 truncate" id="fileShareTitle"></p>
+        <div class="flex justify-center p-4 bg-white rounded-2xl border border-slate-200">
+          <div id="fileShareQrBox"></div>
+        </div>
+        <p class="text-[10px] text-slate-400 text-center">ให้เพื่อนสแกน QR ด้วยกล้องมือถือ หรือส่งลิงก์ต่อได้เลย</p>
+        <div class="flex gap-2">
+          <input type="text" readonly id="fileShareLinkInput" class="flex-1 min-w-0 px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-600 outline-none">
+          <button onclick="copyFileShareLink()" class="px-4 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition shrink-0"><i class="fa-solid fa-copy mr-1"></i>คัดลอก</button>
+        </div>
+        <a id="fileShareLineBtn" href="#" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full py-3 bg-[#06C755] text-white font-bold text-xs rounded-xl shadow-md hover:bg-emerald-500 transition"><i class="fa-brands fa-line text-base"></i> แชร์ผ่าน LINE</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Favorites Modal -->
   <div id="favoritesModal" class="fixed inset-0 z-[65] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
     <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden transform transition-all max-h-[85vh] flex flex-col">
@@ -949,6 +971,6 @@
     </div>
   </div>
 
-  <script src="assets/js/app.js?v=3"></script>
+  <script src="assets/js/app.js?v=4"></script>
 </body>
 </html>
