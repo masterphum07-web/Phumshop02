@@ -1648,6 +1648,11 @@ const collapsedFolderIds = new Set();
 
 function openFolderManager() {
   document.getElementById('folderManagerModal').classList.remove('hidden');
+  // เริ่มต้นแบบพับทุกกิ่ง เพื่อให้เห็นเฉพาะโฟลเดอร์ระดับหลักก่อน
+  collapsedFolderIds.clear();
+  appState.folders.forEach(f => {
+    if(appState.folders.some(child => (child.parentId || '') === f.id)) collapsedFolderIds.add(f.id);
+  });
   renderFolderManagerList();
 }
 
