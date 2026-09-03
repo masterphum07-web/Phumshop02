@@ -1644,6 +1644,8 @@ function renderFolderView() {
 // ---------------------------------------------------
 // Folder Manager
 // ---------------------------------------------------
+const collapsedFolderIds = new Set();
+
 function openFolderManager() {
   document.getElementById('folderManagerModal').classList.remove('hidden');
   renderFolderManagerList();
@@ -1662,17 +1664,32 @@ function renderFolderManagerList() {
     list.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ยังไม่มีโฟลเดอร์</p>`;
     return;
   }
-  list.innerHTML = sorted.map(f => {
-    const depth = folderDepthOf(f.id);
-    return `
-    <div class="flex justify-between items-center bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition">
-      <span class="text-sm font-bold text-slate-700 truncate" title="${folderPathOf(f.id)}">${'<span class="text-slate-300 mr-1">' + '·&nbsp;'.repeat(depth) + '</span>'}${depth > 0 ? '↳ ' : '📁 '}${f.name}</span>
-      <div class="flex gap-1.5 shrink-0">
-        <button onclick="openShareModal('${f.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-[11px] font-bold transition"><i class="fa-solid fa-share-nodes mr-1"></i>${f.shareEnabled ? 'แชร์อยู่' : 'แชร์'}</button>
-        <button onclick="handleDeleteFolder('${f.id}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบ"><i class="fa-solid fa-trash-can text-sm"></i></button>
+  const byParent = {};
+  sorted.forEach(f => { (byParent[f.parentId || ''] ||= []).push(f); });
+  const renderBranch = (parentId = '', depth = 0) => (byParent[parentId] || []).map(f => {
+    const children = byParent[f.id] || [];
+    const isCollapsed = collapsedFolderIds.has(f.id);
+    const arrow = children.length
+      ? `<button onclick="toggleFolderManagerBranch('${f.id}')" class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition" title="${isCollapsed ? 'ขยาย' : 'ย่อ'}"><i class="fa-solid fa-chevron-${isCollapsed ? 'right' : 'down'} text-xs"></i></button>`
+      : '<span class="w-7"></span>';
+    return `<div>
+      <div class="flex justify-between items-center bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm hover:shadow-md transition" style="margin-left:${depth * 20}px">
+        <div class="flex items-center gap-1 min-w-0">${arrow}<span class="text-sm font-bold text-slate-700 truncate" title="${folderPathOf(f.id)}">${depth > 0 ? '↳ ' : '📁 '}${f.name}</span></div>
+        <div class="flex gap-1.5 shrink-0">
+          <button onclick="openShareModal('${f.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-[11px] font-bold transition"><i class="fa-solid fa-share-nodes mr-1"></i>${f.shareEnabled ? 'แชร์อยู่' : 'แชร์'}</button>
+          <button onclick="handleDeleteFolder('${f.id}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบ"><i class="fa-solid fa-trash-can text-sm"></i></button>
+        </div>
       </div>
+      ${!isCollapsed ? renderBranch(f.id, depth + 1) : ''}
     </div>`;
   }).join('');
+  list.innerHTML = renderBranch();
+}
+
+function toggleFolderManagerBranch(id) {
+  if(collapsedFolderIds.has(id)) collapsedFolderIds.delete(id);
+  else collapsedFolderIds.add(id);
+  renderFolderManagerList();
 }
 
 function handleAddFolderUI() {
