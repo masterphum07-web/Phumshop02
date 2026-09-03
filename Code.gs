@@ -144,6 +144,13 @@ function getInitialData() {
     const docSheet = ss.getSheetByName(SHEET_NAME);
     let documents = [];
     let categoriesSet = new Set();
+    const hiddenCategorySet = new Set();
+    const hiddenSheet = ss.getSheetByName("HiddenCategories");
+    if(hiddenSheet) {
+      hiddenSheet.getDataRange().getDisplayValues().slice(1).forEach(r => {
+        if(r[0]) hiddenCategorySet.add(String(r[0]).trim().toLowerCase());
+      });
+    }
 
     const subjectSheet = ss.getSheetByName("Subjects");
     let subjects = [];
@@ -152,7 +159,7 @@ function getInitialData() {
       for(let i=1; i<sData.length; i++) {
         if(sData[i][2]) {
           const subjectName = String(sData[i][2]).trim();
-          categoriesSet.add(subjectName);
+          if(!hiddenCategorySet.has(subjectName.toLowerCase())) categoriesSet.add(subjectName);
           subjects.push({ id: String(sData[i][0] || ""), name: subjectName });
         }
       }
@@ -171,7 +178,7 @@ function getInitialData() {
          let originalFilename = row[7] ? String(row[7]) : "-";
          let docType = row[8] ? String(row[8]) : "ทั่วไป"; 
          
-         categoriesSet.add(category);
+         if(!hiddenCategorySet.has(category.toLowerCase())) categoriesSet.add(category);
          documents.push({
            id: "DOC_" + i,
            title: title,
@@ -190,6 +197,8 @@ function getInitialData() {
 
     let categories = Array.from(categoriesSet).map(c => ({name: c}));
     if(categories.length === 0) categories = [{name: "ทั่วไป"}];
+    // หน้าจัดการวิชาแสดงทุกหมวดหมู่ที่ผู้ใช้มองเห็น รวมถึงหมวดหมู่ที่มาจากเอกสาร
+    const managedSubjects = categories.map(c => ({ id: "", name: c.name }));
 
     // 3. ดึงข้อมูล Tasks
     let tasks = [];
@@ -235,7 +244,7 @@ function getInitialData() {
       site_font: settings.siteFont, corner_style: settings.cornerStyle,
       animations_enabled: settings.animationsEnabled, footer_text: settings.footerText,
       line_token: settings.lineToken || "", line_target: settings.lineTarget || ""
-    }, categories: categories, subjects: subjects, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
+    }, categories: categories, subjects: managedSubjects, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
   }
@@ -285,6 +294,16 @@ function addNewCategory(subjectName, username) {
     subjectName = String(subjectName || '').trim();
     if(!subjectName) return { success: false, message: "กรุณาระบุชื่อวิชา" };
     const ss = getSS();
+    const hidden = ss.getSheetByName("HiddenCategories");
+    if(hidden) {
+      const hiddenRows = hidden.getDataRange().getDisplayValues();
+      for(let i=1; i<hiddenRows.length; i++) {
+        if(String(hiddenRows[i][0] || '').trim().toLowerCase() === subjectName.toLowerCase()) {
+          hidden.deleteRow(i + 1);
+          break;
+        }
+      }
+    }
     let sheet = ss.getSheetByName("Subjects");
     if(!sheet) { sheet = ss.insertSheet("Subjects"); sheet.appendRow(["ID", "Username", "SubjectName", "ExamDate"]); }
     const existing = sheet.getDataRange().getDisplayValues();
@@ -304,9 +323,8 @@ function deleteCategory(subjectName, username) {
     subjectName = String(subjectName || '').trim();
     const ss = getSS();
     const sheet = ss.getSheetByName("Subjects");
-    if (!sheet) return { success: false, message: "ยังไม่พบรายการวิชา" };
     
-    const data = sheet.getDataRange().getValues();
+    const data = sheet ? sheet.getDataRange().getValues() : [];
     let rowIndex = -1;
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][2] || '').trim().toLowerCase() === subjectName.toLowerCase()) {
@@ -317,11 +335,18 @@ function deleteCategory(subjectName, username) {
     
     if (rowIndex > -1) {
       sheet.deleteRow(rowIndex);
-      logActivity(`${username || "ผู้ใช้"} ลบวิชา: ${subjectName}`);
-      return { success: true, message: "ลบวิชาเรียบร้อย" };
-    } else {
-      return { success: false, message: "ไม่พบวิชาในแท็บ Subjects — วิชานี้อาจมาจากหมวดหมู่ของเอกสาร จึงยังแสดงอยู่" };
     }
+    // บันทึกชื่อที่ลบไว้เพื่อไม่ให้หมวดหมู่จากเอกสารถูกสร้างกลับมาในตัวเลือก
+    let hidden = ss.getSheetByName("HiddenCategories");
+    if(!hidden) {
+      hidden = ss.insertSheet("HiddenCategories");
+      hidden.appendRow(["CategoryName", "HiddenAt", "HiddenBy"]);
+    }
+    const hiddenRows = hidden.getDataRange().getDisplayValues();
+    const alreadyHidden = hiddenRows.slice(1).some(r => String(r[0] || '').trim().toLowerCase() === subjectName.toLowerCase());
+    if(!alreadyHidden) hidden.appendRow([subjectName, new Date(), username || "admin"]);
+    logActivity(`${username || "ผู้ใช้"} ลบ/ซ่อนวิชา: ${subjectName}`);
+    return { success: true, message: "ลบวิชาออกจากตัวเลือกเรียบร้อย" };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 
