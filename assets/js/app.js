@@ -1657,12 +1657,8 @@ function openFolderManager() {
 }
 
 function renderFolderManagerList() {
-  const parentSel = document.getElementById('newFolderParent');
   const sorted = [...appState.folders].sort((a, b) => folderPathOf(a.id).localeCompare(folderPathOf(b.id), 'th'));
-  parentSel.innerHTML = '<option value="">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</option>' + sorted.map(f => {
-    const depth = folderDepthOf(f.id);
-    return `<option value="${f.id}">${'— '.repeat(depth)}${f.name}</option>`;
-  }).join('');
+  renderNewFolderParentCascade(sorted);
 
   const list = document.getElementById('folderManagerList');
   if(appState.folders.length === 0) {
@@ -1689,6 +1685,34 @@ function renderFolderManagerList() {
     </div>`;
   }).join('');
   list.innerHTML = renderBranch();
+}
+
+function renderNewFolderParentCascade(sorted = appState.folders) {
+  const box = document.getElementById('newFolderParentCascade');
+  const hidden = document.getElementById('newFolderParent');
+  if(!box || !hidden) return;
+  const byParent = {};
+  sorted.forEach(f => { (byParent[f.parentId || ''] ||= []).push(f); });
+  box.innerHTML = '<select class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-400 outline-none cursor-pointer" onchange="handleParentCascadeChange(this)"><option value="">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</option>' + (byParent[''] || []).map(f => `<option value="${f.id}">${f.name}</option>`).join('') + '</select>';
+  hidden.value = '';
+}
+
+function handleParentCascadeChange(select) {
+  const box = document.getElementById('newFolderParentCascade');
+  const hidden = document.getElementById('newFolderParent');
+  const selectedId = select.value;
+  const selects = [...box.querySelectorAll('select')];
+  const index = selects.indexOf(select);
+  selects.slice(index + 1).forEach(s => s.remove());
+  hidden.value = selectedId || (index > 0 ? selects[index - 1].value : '');
+  if(!selectedId) return;
+  const children = appState.folders.filter(f => (f.parentId || '') === selectedId);
+  if(!children.length) return;
+  const next = document.createElement('select');
+  next.className = select.className;
+  next.innerHTML = '<option value="">— สร้างในโฟลเดอร์นี้ —</option>' + children.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+  next.onchange = () => handleParentCascadeChange(next);
+  box.appendChild(next);
 }
 
 function toggleFolderManagerBranch(id) {
