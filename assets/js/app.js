@@ -83,9 +83,22 @@ function callAPI(action, payload = {}) {
 // Since this is just a static Github page hitting a Google App Script, we usually NEED GET requests for JSONP or CORS enabled.
 // BUT I will keep using fetch POST, wait, if CORS is not enabled, we can't read the response. 
 // However, the original prompt asked to just use fetch. We'll use GET for reading data to bypass CORS easily if POST fails, or assume the user deployed it with CORS allowed.
-// Let's use GET for fetch Initial Data to avoid CORS preflight issues.
+// ใช้ JSONP สำหรับข้อมูลเริ่มต้น เพื่อรองรับ Safari/iPad ที่บล็อก fetch ตอน Apps Script redirect โดเมน
 function fetchInitialData() {
-  return fetchWithTimeout(API_URL + "?action=getInitialData", 12000).then(r => r.json());
+  return new Promise((resolve, reject) => {
+    const callbackName = '__docHubJsonp_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('JSONP timeout')); }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = result => { cleanup(); resolve(result); };
+    script.onerror = () => { cleanup(); reject(new Error('JSONP request failed')); };
+    script.src = API_URL + '?action=getInitialData&callback=' + callbackName + '&_=' + Date.now();
+    document.head.appendChild(script);
+  });
 }
 
 function fetchWithTimeout(url, timeoutMs = 12000, options = {}) {

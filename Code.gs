@@ -21,11 +21,9 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.action) {
     try {
       let result = handleRequest(e.parameter);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+      return formatGetResponse(result, e.parameter.callback);
     } catch (error) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return formatGetResponse({ success: false, error: error.toString() }, e.parameter.callback);
     }
   }
   return HtmlService.createHtmlOutput('API is running. This backend is for DOC HUB GitHub Pages.')
@@ -333,6 +331,14 @@ function getFolderPath(ss, folderId) {
     guard++;
   }
   return path.join(" / ");
+}
+
+// JSONP ช่วยให้ Safari/iPad อ่านข้อมูลได้ แม้ Apps Script จะ redirect โดเมนระหว่างทาง
+function formatGetResponse(result, callback) {
+  const json = JSON.stringify(result);
+  const cb = String(callback || "").match(/^[A-Za-z_$][0-9A-Za-z_$]*$/);
+  if(cb) return ContentService.createTextOutput(cb[0] + "(" + json + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
 // หาโฟลเดอร์จริงใน Drive จากรหัสโฟลเดอร์ของระบบ
