@@ -1693,26 +1693,33 @@ function renderNewFolderParentCascade(sorted = appState.folders) {
   if(!box || !hidden) return;
   const byParent = {};
   sorted.forEach(f => { (byParent[f.parentId || ''] ||= []).push(f); });
-  box.innerHTML = '<select class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-400 outline-none cursor-pointer" onchange="handleParentCascadeChange(this)"><option value="">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</option>' + (byParent[''] || []).map(f => `<option value="${f.id}">${f.name}</option>`).join('') + '</select>';
+  const renderBranch = (parentId = '', depth = 0) => (byParent[parentId] || []).map(f => {
+    const children = byParent[f.id] || [];
+    const closed = collapsedFolderIds.has('new-parent-' + f.id);
+    return `<div><div class="flex items-center gap-1 px-3 py-2 hover:bg-slate-100 cursor-pointer" style="padding-left:${12 + depth * 18}px">
+      ${children.length ? `<button type="button" onclick="event.stopPropagation();toggleNewParentBranch('${f.id}')" class="w-5 text-slate-400"><i class="fa-solid fa-chevron-${closed ? 'right' : 'down'} text-[10px]"></i></button>` : '<span class="w-5"></span>'}
+      <span onclick="selectNewFolderParent('${f.id}','${f.name.replace(/'/g, '&#39;')}')" class="text-sm text-slate-700 flex-1">${f.name}</span>
+    </div>${!closed ? renderBranch(f.id, depth + 1) : ''}</div>`;
+  }).join('');
+  box.innerHTML = `<div class="relative"><button type="button" onclick="toggleNewParentMenu()" class="w-full flex justify-between items-center px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-700"><span id="newFolderParentLabel">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</span><i class="fa-solid fa-chevron-down text-xs"></i></button><div id="newFolderParentMenu" class="hidden absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl"><div onclick="selectNewFolderParent('','— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —')" class="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm font-bold text-slate-600">— ระดับบนสุด (ไม่มีโฟลเดอร์แม่) —</div>${renderBranch()}</div></div>`;
   hidden.value = '';
 }
 
-function handleParentCascadeChange(select) {
-  const box = document.getElementById('newFolderParentCascade');
-  const hidden = document.getElementById('newFolderParent');
-  const selectedId = select.value;
-  const selects = [...box.querySelectorAll('select')];
-  const index = selects.indexOf(select);
-  selects.slice(index + 1).forEach(s => s.remove());
-  hidden.value = selectedId || (index > 0 ? selects[index - 1].value : '');
-  if(!selectedId) return;
-  const children = appState.folders.filter(f => (f.parentId || '') === selectedId);
-  if(!children.length) return;
-  const next = document.createElement('select');
-  next.className = select.className;
-  next.innerHTML = '<option value="">— สร้างในโฟลเดอร์นี้ —</option>' + children.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-  next.onchange = () => handleParentCascadeChange(next);
-  box.appendChild(next);
+function toggleNewParentMenu() {
+  document.getElementById('newFolderParentMenu')?.classList.toggle('hidden');
+}
+
+function toggleNewParentBranch(id) {
+  const key = 'new-parent-' + id;
+  if(collapsedFolderIds.has(key)) collapsedFolderIds.delete(key); else collapsedFolderIds.add(key);
+  renderFolderManagerList();
+  document.getElementById('newFolderParentMenu')?.classList.remove('hidden');
+}
+
+function selectNewFolderParent(id, label) {
+  document.getElementById('newFolderParent').value = id;
+  document.getElementById('newFolderParentLabel').innerText = id ? `สร้างใน: ${label}` : label;
+  document.getElementById('newFolderParentMenu')?.classList.add('hidden');
 }
 
 function toggleFolderManagerBranch(id) {
