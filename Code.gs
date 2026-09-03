@@ -424,8 +424,8 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     const finalCategory = category || folderPath || "ทั่วไป";
     docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`อัปโหลดไฟล์: ${docTitle || filename} โดย ${uploader}`);
-    sendLineMessage(`📄 มีเอกสารใหม่: ${docTitle || filename}\n👤 โดย ${uploader || "-"}${folderPath ? "\n📁 " + folderPath : ""}`);
-    return { success: true };
+    const lineSent = sendLineMessage(`📄 มีเอกสารใหม่\n📝 ${docTitle || filename}\n👤 โดย ${uploader || "-"}\n🕒 ${formatLineDate(new Date())}${folderPath ? "\n📁 " + folderPath : ""}`);
+    return { success: true, lineSent: lineSent };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 
@@ -438,8 +438,8 @@ function uploadDocumentByLink(docTitle, url, category, uploader, docType, folder
     const finalCategory = category || folderPath || "ทั่วไป";
     if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
-    sendLineMessage(`🔗 เพิ่มเอกสารใหม่ (ลิงก์): ${docTitle}\n👤 โดย ${uploader || "-"}${folderPath ? "\n📁 " + folderPath : ""}`);
-    return { success: true };
+    const lineSent = sendLineMessage(`🔗 เพิ่มเอกสารใหม่ (ลิงก์)\n📝 ${docTitle}\n👤 โดย ${uploader || "-"}\n🕒 ${formatLineDate(new Date())}${folderPath ? "\n📁 " + folderPath : ""}`);
+    return { success: true, lineSent: lineSent };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 
@@ -867,6 +867,10 @@ function sendLineMessage(text) {
     Logger.log('LINE notify: ' + resp.getResponseCode() + ' ' + resp.getContentText());
     return resp.getResponseCode() === 200;
   } catch(e) { Logger.log(e); return false; }
+}
+
+function formatLineDate(date) {
+  return Utilities.formatDate(date || new Date(), Session.getScriptTimeZone() || 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
 }
 
 function setLineConfig(token, target, username) {
