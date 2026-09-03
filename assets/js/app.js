@@ -2,7 +2,7 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4EuqBV2_WLFJs5XdogDuVJIQvfbgjZ8Z8Ska80N_P6OBJDk/exec';
 
 let appState = {
-  documents: [], categories: [], tasks: [], flashcards: [], logs: [], folders: [],
+  documents: [], categories: [], subjects: [], tasks: [], flashcards: [], logs: [], folders: [],
   username: '', role: '',
   selectedFiles: [], currentMode: 'file', currentTab: 'tabMain',
   currentFolderId: '', favorites: []
@@ -118,6 +118,7 @@ function cacheData(data) {
 function applyInitialData(res) {
   appState.documents = [...(res.documents || [])].reverse();
   appState.categories = res.categories || [];
+  appState.subjects = res.subjects || [];
   appState.tasks = [...(res.tasks || [])].reverse();
   appState.flashcards = [...(res.flashcards || [])].reverse();
   appState.folders = res.folders || [];
@@ -1483,15 +1484,15 @@ function openSubjectManager() {
 
 function renderSubjectManagerList() {
   const list = document.getElementById('subjectManagerList');
-  if (appState.categories.length === 0) {
+  if (appState.subjects.length === 0) {
     list.innerHTML = `<p class="text-xs text-slate-400">ยังไม่มีวิชา</p>`;
     return;
   }
   
-  list.innerHTML = appState.categories.filter(c => c.name.trim() !== '').map(c => `
+  list.innerHTML = appState.subjects.filter(s => s.name.trim() !== '').map(s => `
     <div class="flex justify-between items-center bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition">
-      <span class="text-sm font-bold text-slate-700">${c.name}</span>
-      <button onclick="handleDeleteSubject('${c.name}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบวิชา"><i class="fa-solid fa-trash-can text-sm"></i></button>
+      <span class="text-sm font-bold text-slate-700">${s.name}</span>
+      <button onclick="handleDeleteSubject('${s.name}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบวิชา"><i class="fa-solid fa-trash-can text-sm"></i></button>
     </div>
   `).join('');
 }

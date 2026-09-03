@@ -146,10 +146,15 @@ function getInitialData() {
     let categoriesSet = new Set();
 
     const subjectSheet = ss.getSheetByName("Subjects");
+    let subjects = [];
     if(subjectSheet) {
       const sData = subjectSheet.getDataRange().getDisplayValues();
       for(let i=1; i<sData.length; i++) {
-        if(sData[i][2]) categoriesSet.add(String(sData[i][2]));
+        if(sData[i][2]) {
+          const subjectName = String(sData[i][2]).trim();
+          categoriesSet.add(subjectName);
+          subjects.push({ id: String(sData[i][0] || ""), name: subjectName });
+        }
       }
     }
 
@@ -230,7 +235,7 @@ function getInitialData() {
       site_font: settings.siteFont, corner_style: settings.cornerStyle,
       animations_enabled: settings.animationsEnabled, footer_text: settings.footerText,
       line_token: settings.lineToken || "", line_target: settings.lineTarget || ""
-    }, categories: categories, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
+    }, categories: categories, subjects: subjects, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
   }
