@@ -335,14 +335,43 @@ function getFolderPath(ss, folderId) {
   return path.join(" / ");
 }
 
+// หาโฟลเดอร์จริงใน Drive จากรหัสโฟลเดอร์ของระบบ
+// ถ้ายังไม่มีโฟลเดอร์จริง จะสร้างตามลำดับชั้นให้โดยอัตโนมัติ
+function getDriveFolderForSystemFolder(ss, folderId) {
+  const root = DriveApp.getFolderById(FOLDER_ID);
+  if(!folderId) return root;
+  const sheet = ss.getSheetByName("Folders");
+  if(!sheet) throw new Error("ไม่พบชีต Folders");
+  const rows = sheet.getDataRange().getDisplayValues();
+  const byId = {};
+  rows.slice(1).forEach(r => { if(r[0]) byId[String(r[0])] = { name: String(r[1] || "").trim(), parentId: String(r[2] || "") }; });
+
+  const chain = [];
+  let currentId = String(folderId);
+  let guard = 0;
+  while(currentId && byId[currentId] && guard++ < 50) {
+    chain.unshift(byId[currentId].name);
+    currentId = byId[currentId].parentId;
+  }
+  if(currentId) throw new Error("ไม่พบโฟลเดอร์แม่ของโฟลเดอร์ปลายทาง");
+
+  let current = root;
+  chain.forEach(name => {
+    if(!name) return;
+    const matches = current.getFoldersByName(name);
+    current = matches.hasNext() ? matches.next() : current.createFolder(name);
+  });
+  return current;
+}
+
 function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, docTitle, docType, folderId) {
   try {
-    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const ss = getSS();
+    const folder = getDriveFolderForSystemFolder(ss, folderId);
     const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, filename);
     const file = folder.createFile(blob);
     // บาง Google Workspace ปิดการแชร์สาธารณะไว้ จึงไม่ให้ขั้นตอนนี้ทำให้ข้อมูลไม่ถูกบันทึกลงชีต
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (shareError) { Logger.log(shareError); }
-    const ss = getSS();
     let docSheet = ss.getSheetByName(SHEET_NAME);
     if(!docSheet) throw new Error(`ไม่พบชีต ${SHEET_NAME}`);
     const folderPath = folderId ? getFolderPath(ss, folderId) : "";
@@ -656,9 +685,20 @@ function getDocRow(sheet, docId) {
   return rowNum;
 }
 
+function isAdminUser(ss, username) {
+  const users = ss.getSheetByName("Users");
+  if(!users || !username) return false;
+  const rows = users.getDataRange().getDisplayValues();
+  for(let i=1; i<rows.length; i++) {
+    if(String(rows[i][0]) === String(username) && String(rows[i][2]).toLowerCase() === "admin") return true;
+  }
+  return false;
+}
+
 function deleteDocument(docId, username) {
   try {
     const ss = getSS();
+    if(!isAdminUser(ss, username)) return { success: false, message: "เฉพาะแอดมินเท่านั้นที่ลบไฟล์ได้" };
     const sheet = ss.getSheetByName(SHEET_NAME);
     if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
     const rowNum = getDocRow(sheet, docId);
@@ -696,12 +736,23 @@ function renameDocument(docId, newTitle, username) {
 function moveDocument(docId, newFolderId, username) {
   try {
     const ss = getSS();
+    if(!isAdminUser(ss, username)) return { success: false, message: "เฉพาะแอดมินเท่านั้นที่ย้ายไฟล์ได้" };
     const sheet = ss.getSheetByName(SHEET_NAME);
     if(!sheet) return { success: false, message: "ไม่พบชีต Database" };
     const rowNum = getDocRow(sheet, docId);
     if(rowNum < 1) return { success: false, message: "ไม่พบเอกสารนี้" };
-    const folderPath = newFolderId ? getFolderPath(ss, newFolderId) : "";
-    sheet.getRange(rowNum, 10).setValue(newFolderId || "");
+    const targetId = newFolderId === "__ROOT__" ? "" : String(newFolderId || "");
+    const folderPath = targetId ? getFolderPath(ss, targetId) : "";
+
+    const url = String(sheet.getRange(rowNum, 6).getDisplayValue() || "");
+    if(url.indexOf('drive.google.com') > -1) {
+      const fid = url.match(/[-\w]{25,}/);
+      if(fid) {
+        const targetFolder = getDriveFolderForSystemFolder(ss, targetId);
+        DriveApp.getFileById(fid[0]).moveTo(targetFolder);
+      }
+    }
+    sheet.getRange(rowNum, 10).setValue(targetId);
     sheet.getRange(rowNum, 7).setValue(folderPath || "ทั่วไป");
     logActivity(`${username || "ผู้ใช้"} ย้ายเอกสารไปโฟลเดอร์: ${folderPath || "ไม่ได้จัดโฟลเดอร์"}`);
     return { success: true };

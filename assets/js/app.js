@@ -471,10 +471,17 @@ function submitChangePassword() {
 function openDocMenu(docId) {
   const d = appState.documents.find(x => x.id === docId);
   if(!d) return;
+  const isAdmin = appState.role === 'admin';
+  const inputOptions = { share: '📲  แชร์ไฟล์ (QR / ลิงก์)', report: '🚨  แจ้งลิงก์เสีย' };
+  if(isAdmin) {
+    inputOptions.rename = '✏️  แก้ชื่อเอกสาร';
+    inputOptions.move = '📁  ย้ายไฟล์ไปโฟลเดอร์อื่น';
+    inputOptions.delete = '🗑️  ลบไฟล์ออกจากระบบและ Drive';
+  }
   Swal.fire({
     title: d.title.length > 30 ? d.title.substring(0, 30) + '...' : d.title,
     input: 'select',
-    inputOptions: { share: '📲  แชร์ไฟล์ (QR / ลิงก์)', rename: '✏️  แก้ชื่อเอกสาร', move: '📁  ย้ายโฟลเดอร์', report: '🚨  แจ้งลิงก์เสีย', delete: '🗑️  ลบเอกสาร' },
+    inputOptions: inputOptions,
     inputPlaceholder: 'เลือกการดำเนินการ',
     showCancelButton: true,
     confirmButtonText: 'ดำเนินการ',
@@ -486,7 +493,7 @@ function openDocMenu(docId) {
     else if(r.value === 'rename') renameDocumentUI(docId);
     else if(r.value === 'move') moveDocumentUI(docId);
     else if(r.value === 'report') reportBrokenLinkUI(docId);
-    else deleteDocumentUI(docId);
+    else if(r.value === 'delete') deleteDocumentUI(docId);
   });
 }
 
@@ -505,7 +512,7 @@ function renameDocumentUI(docId) {
 
 function moveDocumentUI(docId) {
   if(appState.folders.length === 0) return Swal.fire('ยังไม่มีโฟลเดอร์', 'สร้างโฟลเดอร์ก่อนที่แท็บคลังโฟลเดอร์', 'info');
-  const opts = {};
+  const opts = { __ROOT__: '📁 โฟลเดอร์หลัก (นำไฟล์ออกจากโฟลเดอร์ย่อย)' };
   appState.folders.forEach(f => { opts[f.id] = folderPathOf(f.id); });
   Swal.fire({ title: 'ย้ายไปโฟลเดอร์', input: 'select', inputOptions: opts, inputPlaceholder: 'เลือกโฟลเดอร์ปลายทาง', showCancelButton: true, confirmButtonText: 'ย้าย', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#2563eb' }).then(r => {
     if(!r.isConfirmed || !r.value) return;

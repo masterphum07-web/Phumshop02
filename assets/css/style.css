@@ -211,8 +211,12 @@ body.dark .flashcard-back { background-color: #1e293b !important; border-color: 
 
 /* แบนเนอร์หลัก */
 body.dark #bannerTitle {
-  background: linear-gradient(120deg, #f1f5f9 0%, #a5b4fc 38%, #d8b4fe 62%, #67e8f9 84%, #f1f5f9 100%) !important;
-  background-size: 220% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
+  background: none !important;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  color: #f1f5f9 !important;
+  animation: none;
 }
 
 /* SweetAlert */

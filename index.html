@@ -22,13 +22,11 @@
         background-attachment: fixed;
       }
       #bannerTitle {
-        background: linear-gradient(120deg, #1e293b 0%, #3730a3 38%, #7c3aed 62%, #0e7490 84%, #1e293b 100%);
-        background-size: 220% auto;
-        -webkit-background-clip: text; background-clip: text;
-        color: transparent;
-        animation: bannerShine 7s linear infinite;
+        display: inline-block;
+        background: none;
+        -webkit-text-fill-color: #1e293b;
+        color: #1e293b;
       }
-      @keyframes bannerShine { to { background-position: 220% center; } }
       nav button { position: relative; }
       nav button::after {
         content: ''; position: absolute; left: 12%; right: 12%; bottom: 2px; height: 2px; border-radius: 2px;
@@ -65,7 +63,7 @@
     </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <link rel="stylesheet" href="assets/css/style.css?v=4">
+  <link rel="stylesheet" href="assets/css/style.css?v=6">
 </head>
 <body class="text-slate-800 antialiased bg-slate-50 min-h-screen flex flex-col">
 
