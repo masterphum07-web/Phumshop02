@@ -1509,9 +1509,14 @@ function handleAddSubjectUI() {
 function handleDeleteSubject(name) {
   if(!confirm(`คุณต้องการลบวิชา "${name}" ใช่หรือไม่?\n\n(วิชานี้จะถูกลบออกจากตัวเลือก แต่เอกสารเดิมจะไม่หายไป)`)) return;
 
-  fetch(API_URL + `?action=deleteCategory&subjectName=${encodeURIComponent(name)}&username=${appState.username || 'guest'}`).then(() => {
-    refreshData().then(() => renderSubjectManagerList());
-  });
+  fetchWithTimeout(API_URL + `?action=deleteCategory&subjectName=${encodeURIComponent(name)}&username=${encodeURIComponent(appState.username || 'guest')}`, 15000)
+    .then(r => r.json())
+    .then(res => {
+      if(!res.success) return Swal.fire('ลบวิชาไม่สำเร็จ', res.message || 'ไม่สามารถลบวิชาได้', 'warning');
+      Swal.fire({ icon: 'success', title: 'ลบวิชาแล้ว', text: 'กำลังอัปเดตรายการวิชา', timer: 1200, showConfirmButton: false });
+      refreshData(true).then(() => renderSubjectManagerList());
+    })
+    .catch(() => Swal.fire('เชื่อมต่อไม่ได้', 'ลบวิชาไม่สำเร็จ ลองใหม่อีกครั้ง', 'warning'));
 }
 
 // ---------------------------------------------------

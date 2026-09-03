@@ -277,25 +277,34 @@ function registerUser(username, password) {
 
 function addNewCategory(subjectName, username) {
   try {
+    subjectName = String(subjectName || '').trim();
+    if(!subjectName) return { success: false, message: "กรุณาระบุชื่อวิชา" };
     const ss = getSS();
     let sheet = ss.getSheetByName("Subjects");
     if(!sheet) { sheet = ss.insertSheet("Subjects"); sheet.appendRow(["ID", "Username", "SubjectName", "ExamDate"]); }
+    const existing = sheet.getDataRange().getDisplayValues();
+    for(let i=1; i<existing.length; i++) {
+      if(String(existing[i][2] || '').trim().toLowerCase() === subjectName.toLowerCase()) {
+        return { success: false, message: "มีวิชานี้อยู่แล้ว" };
+      }
+    }
     sheet.appendRow(["SUB_" + Utilities.getUuid().substring(0,8), username || "admin", subjectName, ""]);
     logActivity(`${username || "ผู้ใช้"} เพิ่มวิชาใหม่: ${subjectName}`);
-    return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
-  } catch(e) { return ContentService.createTextOutput(JSON.stringify({ success: false, message: e.toString() })).setMimeType(ContentService.MimeType.JSON); }
+    return { success: true, message: "เพิ่มวิชาเรียบร้อย" };
+  } catch(e) { return { success: false, message: e.toString() }; }
 }
 
 function deleteCategory(subjectName, username) {
   try {
+    subjectName = String(subjectName || '').trim();
     const ss = getSS();
     const sheet = ss.getSheetByName("Subjects");
-    if (!sheet) return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Sheet Subjects not found" })).setMimeType(ContentService.MimeType.JSON);
+    if (!sheet) return { success: false, message: "ยังไม่พบรายการวิชา" };
     
     const data = sheet.getDataRange().getValues();
     let rowIndex = -1;
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][2]) === subjectName) {
+      if (String(data[i][2] || '').trim().toLowerCase() === subjectName.toLowerCase()) {
         rowIndex = i + 1;
         break;
       }
@@ -304,11 +313,11 @@ function deleteCategory(subjectName, username) {
     if (rowIndex > -1) {
       sheet.deleteRow(rowIndex);
       logActivity(`${username || "ผู้ใช้"} ลบวิชา: ${subjectName}`);
-      return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+      return { success: true, message: "ลบวิชาเรียบร้อย" };
     } else {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, message: "ไม่พบวิชาที่ต้องการลบ (อาจถูกลบไปแล้วหรือมาจากเอกสาร)" })).setMimeType(ContentService.MimeType.JSON);
+      return { success: false, message: "ไม่พบวิชาในแท็บ Subjects — วิชานี้อาจมาจากหมวดหมู่ของเอกสาร จึงยังแสดงอยู่" };
     }
-  } catch(e) { return ContentService.createTextOutput(JSON.stringify({ success: false, message: e.toString() })).setMimeType(ContentService.MimeType.JSON); }
+  } catch(e) { return { success: false, message: e.toString() }; }
 }
 
 // หา path เต็มของโฟลเดอร์ เช่น "ปี 1 / คณิตศาสตร์ / สรุป"
