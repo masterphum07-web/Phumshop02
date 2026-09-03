@@ -111,8 +111,8 @@ function applyInitialData(res) {
   const driveLink = document.getElementById('openDriveLink');
   if(driveLink && res.driveFolderUrl) driveLink.href = res.driveFolderUrl;
   const settings = res.settings || {};
-  document.getElementById('bannerTitle').innerText = settings.header_title || 'DOC HUB';
-  document.getElementById('navTitle').innerText = settings.header_title || 'DOC HUB';
+  document.getElementById('bannerTitle').innerText = settings.header_title || 'PHUMSHOP WEB';
+  document.getElementById('navTitle').innerText = 'PHUMSHOP WEB';
   document.getElementById('bannerSubtitle').innerText = settings.cta_text || '';
   applySiteSettings(settings);
   if(document.getElementById('settingBannerTitle')) {
