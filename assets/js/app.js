@@ -511,6 +511,24 @@ function openDocMenu(docId) {
   });
 }
 
+function fetchJsonp(action, params = {}, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const callbackName = '__docHubJsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const query = new URLSearchParams({ action, ...params, callback: callbackName, _: Date.now() });
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = result => { cleanup(); resolve(result); };
+    script.onerror = () => { cleanup(); reject(new Error('JSONP request failed')); };
+    script.src = API_URL + '?' + query.toString();
+    document.head.appendChild(script);
+  });
+}
+
 function renameDocumentUI(docId) {
   const d = appState.documents.find(x => x.id === docId);
   if(!d) return;
@@ -1135,8 +1153,7 @@ function submitLogin() {
     if(p !== p2) return Swal.fire('รหัสไม่ตรงกัน', 'กรอกรหัสผ่านยืนยันให้เหมือนกัน', 'warning');
 
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-    fetchWithTimeout(API_URL + `?action=registerUser&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`, 15000)
-      .then(r => r.json())
+    fetchJsonp('registerUser', { username: u, password: p }, 15000)
       .then(res => {
         btn.innerHTML = 'สมัครสมาชิก <i class="fa-solid fa-user-plus"></i>';
         if(res.success) applyLoginSuccess(res);
@@ -1150,8 +1167,7 @@ function submitLogin() {
 
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
-  fetchWithTimeout(API_URL + `?action=verifyLogin&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`, 10000)
-    .then(r => r.json())
+  fetchJsonp('verifyLogin', { username: u, password: p }, 12000)
     .then(res => {
       btn.innerHTML = 'เข้าสู่ระบบ <i class="fa-solid fa-arrow-right-to-bracket"></i>';
       if(res.success) {
@@ -1159,6 +1175,10 @@ function submitLogin() {
       } else {
         Swal.fire('ข้อมูลไม่ถูกต้อง', res.message, 'error');
       }
+    })
+    .catch(() => {
+      btn.innerHTML = 'เข้าสู่ระบบ <i class="fa-solid fa-arrow-right-to-bracket"></i>';
+      Swal.fire('เชื่อมต่อไม่ได้', 'ระบบตอบกลับช้าเกินไป ลองรีเฟรชหน้าเว็บแล้วเข้าสู่ระบบใหม่', 'warning');
     });
 }
 
@@ -1759,15 +1779,18 @@ function toggleFolderShare(enabled) {
 function saveLineConfig() {
   const token = document.getElementById('lineTokenInput').value.trim();
   const target = document.getElementById('lineTargetInput').value.trim();
-  fetchWithTimeout(API_URL + `?action=setLineConfig&token=${encodeURIComponent(token)}&target=${encodeURIComponent(target)}&username=${encodeURIComponent(appState.username || 'admin')}`, 15000)
-    .then(r => r.json()).then(res => {
+  fetchJsonp('setLineConfig', {
+    token,
+    target,
+    username: appState.username || 'admin'
+  }, 15000).then(res => {
       Swal.fire(res.success ? 'สำเร็จ' : 'ไม่สำเร็จ', res.message || '', res.success ? 'success' : 'error');
     }).catch(() => Swal.fire('เชื่อมต่อไม่ได้', 'ลองอีกครั้ง', 'warning'));
 }
 
 function testLineMsg() {
   Swal.fire({ title: 'กำลังส่ง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-  fetchWithTimeout(API_URL + `?action=testLineMessage`, 25000).then(r => r.json()).then(res => {
+  fetchJsonp('testLineMessage', {}, 25000).then(res => {
     Swal.fire(res.success ? 'ส่งแล้ว!' : 'ส่งไม่สำเร็จ', res.message, res.success ? 'success' : 'warning');
   }).catch(() => Swal.fire('หมดเวลา', 'ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง', 'warning'));
 }
