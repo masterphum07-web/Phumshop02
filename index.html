@@ -403,15 +403,41 @@
              </h2>
              <p class="text-purple-100 text-sm mt-1">คลังข้อสอบ สรุปเนื้อหา แฟลชการ์ด และตารางอ่านหนังสือ</p>
            </div>
-           <div class="relative z-10 flex gap-2">
-             <div class="flex gap-2 w-full sm:w-auto">
-               <select id="studySubjectFilter" onchange="filterStudyData()" class="flex-1 px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl text-white outline-none focus:bg-white/30 font-semibold text-sm cursor-pointer shadow-sm">
-               </select>
-               <button onclick="openSubjectManager()" class="px-4 py-2 bg-white/20 hover:bg-white/40 backdrop-blur-md border border-white/30 rounded-xl text-white font-bold text-sm transition shadow-sm" title="จัดการวิชา"><i class="fa-solid fa-gear"></i></button>
-             </div>
-                <option value="" class="text-slate-800">เลือกวิชาทั้งหมด</option>
-             </select>
-           </div>
+            <div class="relative z-10 flex gap-2">
+              <div class="flex gap-2 w-full sm:w-auto">
+                <select id="studySubjectFilter" onchange="filterStudyData()" class="flex-1 px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-xl text-white outline-none focus:bg-white/30 font-semibold text-sm cursor-pointer shadow-sm">
+                  <option value="" class="text-slate-800">เลือกวิชาทั้งหมด</option>
+                </select>
+                <button onclick="openSubjectManager()" class="px-4 py-2 bg-white/20 hover:bg-white/40 backdrop-blur-md border border-white/30 rounded-xl text-white font-bold text-sm transition shadow-sm" title="จัดการวิชา"><i class="fa-solid fa-gear"></i></button>
+              </div>
+            </div>
+        </div>
+
+        <!-- ================= EXAM COUNTDOWN WIDGET ================= -->
+        <div id="examCountdownSection" class="hidden">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 text-white flex items-center justify-center shadow-md shadow-rose-500/20 text-lg">
+                <i class="fa-solid fa-stopwatch animate-pulse"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-black text-slate-800 text-base">นับถอยหลังกำหนดการสอบ (Exam Countdown)</h3>
+                  <span id="countdownActiveCount" class="text-[10px] font-black uppercase px-2 py-0.5 bg-rose-100 text-rose-600 rounded-full">0 วิชา</span>
+                </div>
+                <p class="text-xs text-slate-400">ตรวจสอบวันสอบ จัดการเวลาอ่านหนังสือ และเตรียมตัวล่วงหน้า</p>
+              </div>
+            </div>
+            <div>
+              <button onclick="openSubjectManager()" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl shadow-2xs transition">
+                <i class="fa-solid fa-calendar-plus text-purple-600"></i> ตั้งวันสอบ
+              </button>
+            </div>
+          </div>
+          <!-- Grid cards for countdown -->
+          <div id="examCountdownGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Rendered by renderExamCountdowns() -->
+          </div>
         </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -876,39 +902,38 @@
 
   <!-- Subject Manager Modal -->
   <div id="subjectManagerModal" class="fixed inset-0 z-[60] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl flex flex-col overflow-hidden transform transition-all">
-      <div class="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
-        <h3 class="font-bold text-slate-800"><i class="fa-solid fa-layer-group text-fuchsia-500 mr-2"></i>จัดการหมวดหมู่วิชา</h3>
-        <button onclick="document.getElementById('subjectManagerModal').classList.add('hidden')" class="w-8 h-8 flex justify-center items-center rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="p-6">
-        <div class="flex gap-2 mb-6">
-          <input type="text" id="newSubjectNameUI" placeholder="พิมพ์ชื่อวิชาใหม่..." class="flex-1 px-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-fuchsia-400 outline-none" onkeydown="if(event.key === 'Enter') handleAddSubjectUI()">
-          <button onclick="handleAddSubjectUI()" class="px-5 bg-slate-800 text-white text-sm font-bold rounded-xl shadow-md hover:bg-slate-700 transition">เพิ่ม</button>
-        </div>
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">วิชาทั้งหมดที่มีในระบบ</p>
-        <div id="subjectManagerList" class="max-h-60 overflow-y-auto space-y-2 pr-2">
-          <!-- list injected here -->
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Subject Manager Modal -->
-  <div id="subjectManagerModal" class="fixed inset-0 z-[60] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
-    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl flex flex-col overflow-hidden transform transition-all">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden transform transition-all">
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-        <h3 class="font-bold text-slate-800"><i class="fa-solid fa-layer-group text-fuchsia-500 mr-2"></i>จัดการวิชา</h3>
+        <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-layer-group text-fuchsia-500"></i> จัดการวิชา & กำหนดวันสอบ</h3>
         <button onclick="document.getElementById('subjectManagerModal').classList.add('hidden')" class="w-8 h-8 flex justify-center items-center rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="p-6">
-        <div class="flex gap-2 mb-6">
-          <input type="text" id="newSubjectNameUI" placeholder="พิมพ์ชื่อวิชาใหม่..." class="flex-1 px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-fuchsia-400 outline-none" onkeydown="if(event.key === 'Enter') handleAddSubjectUI()">
-          <button onclick="handleAddSubjectUI()" class="px-5 bg-slate-800 text-white text-sm font-bold rounded-xl shadow-md hover:bg-slate-700 transition">เพิ่ม</button>
+      <div class="p-6 space-y-5">
+        <!-- Form Add Subject -->
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+          <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-plus-circle text-fuchsia-500"></i> เพิ่มวิชาใหม่ & ใส่วันสอบ</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 mb-1">ชื่อวิชา <span class="text-rose-500">*</span></label>
+              <input type="text" id="newSubjectNameUI" placeholder="เช่น ฟิสิกส์, ชีววิทยา..." class="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:border-fuchsia-400 outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 mb-1">วัน-เวลาสอบ (ไม่บังคับ)</label>
+              <input type="datetime-local" id="newSubjectExamDateUI" class="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:border-fuchsia-400 outline-none text-slate-700">
+            </div>
+          </div>
+          <button onclick="handleAddSubjectUI()" class="w-full py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white text-xs font-bold rounded-xl shadow-md hover:from-purple-700 hover:to-fuchsia-700 transition">
+            <i class="fa-solid fa-plus mr-1"></i> บันทึกวิชาใหม่
+          </button>
         </div>
-        <p class="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">วิชาทั้งหมดที่มีในระบบ</p>
-        <div id="subjectManagerList" class="max-h-60 overflow-y-auto space-y-2 pr-2">
-          <!-- list injected here -->
+
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">วิชาทั้งหมดในระบบ</p>
+            <span class="text-[10px] text-slate-400">คลิกที่วันสอบเพื่อแก้ไขได้</span>
+          </div>
+          <div id="subjectManagerList" class="max-h-64 overflow-y-auto space-y-2 pr-1">
+            <!-- list injected here -->
+          </div>
         </div>
       </div>
     </div>

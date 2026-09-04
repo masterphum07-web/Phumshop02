@@ -145,7 +145,7 @@ function applyInitialData(res) {
     document.getElementById('settingAnimations').checked = settings.animations_enabled !== 'false';
   }
   updateCategoryDropdowns(); filterDocuments(); filterStudyData(); renderTasks(); renderFlashcards();
-  renderFolderView(); renderPopular(); renderFolderCascade();
+  renderFolderView(); renderPopular(); renderFolderCascade(); renderExamCountdowns();
   fetchMyFavorites();
   const lt = document.getElementById('lineTokenInput'); if(lt) lt.value = settings.line_token || '';
   const ltt = document.getElementById('lineTargetInput'); if(ltt) ltt.value = settings.line_target || '';
@@ -1748,6 +1748,240 @@ if (fcContainer) {
 }
 
 // ---------------------------------------------------
+// Exam Countdown Widget & Local Exam Dates
+// ---------------------------------------------------
+function getExamDates() {
+  try {
+    return JSON.parse(localStorage.getItem('docHubExamDates') || '{}');
+  } catch(e) {
+    return {};
+  }
+}
+
+function saveExamDate(subjectName, examDateStr) {
+  const dates = getExamDates();
+  if(!examDateStr) {
+    delete dates[subjectName];
+  } else {
+    dates[subjectName] = examDateStr;
+  }
+  try {
+    localStorage.setItem('docHubExamDates', JSON.stringify(dates));
+  } catch(e) {}
+  renderExamCountdowns();
+  renderSubjectManagerList();
+}
+
+let countdownInterval = null;
+
+function renderExamCountdowns() {
+  const sec = document.getElementById('examCountdownSection');
+  const grid = document.getElementById('examCountdownGrid');
+  const countBadge = document.getElementById('countdownActiveCount');
+  if(!sec || !grid) return;
+
+  const datesMap = getExamDates();
+  const now = new Date().getTime();
+
+  // รวมรายการวิชาที่มีการตั้งวันสอบไว้
+  const subjectsWithExam = [];
+  
+  // จาก appState.subjects หรือ categories
+  const allSubjectNames = new Set([
+    ...appState.subjects.map(s => s.name),
+    ...appState.categories.map(c => c.name)
+  ]);
+
+  allSubjectNames.forEach(name => {
+    if(!name || name.trim() === '') return;
+    const dateStr = datesMap[name];
+    if(dateStr) {
+      const examTime = new Date(dateStr).getTime();
+      subjectsWithExam.push({
+        name: name,
+        dateStr: dateStr,
+        examTime: examTime,
+        diff: examTime - now
+      });
+    }
+  });
+
+  if(subjectsWithExam.length === 0) {
+    sec.classList.add('hidden');
+    if(countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    return;
+  }
+
+  sec.classList.remove('hidden');
+  if(countBadge) countBadge.innerText = `${subjectsWithExam.length} วิชา`;
+
+  // เรียงลำดับวิชาที่สอบใกล้ที่สุดขึ้นก่อน
+  subjectsWithExam.sort((a, b) => a.examTime - b.examTime);
+
+  grid.innerHTML = subjectsWithExam.map(item => {
+    const diff = item.diff;
+    const isPast = diff <= 0;
+
+    let days = 0, hours = 0, mins = 0, secs = 0;
+    if(!isPast) {
+      days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      secs = Math.floor((diff % (1000 * 60)) / 1000);
+    }
+
+    // คำนวณสถิติของวิชานี้ (จำนวนเอกสาร & Flashcards)
+    const docCount = appState.documents.filter(d => (d.category || '').toLowerCase() === item.name.toLowerCase()).length;
+    const fcCount = appState.flashcards.filter(f => (f.subject || '').toLowerCase() === item.name.toLowerCase()).length;
+    const taskTotal = appState.tasks.filter(t => (t.subject || '').toLowerCase() === item.name.toLowerCase()).length;
+    const taskDone = appState.tasks.filter(t => (t.subject || '').toLowerCase() === item.name.toLowerCase() && t.isDone).length;
+
+    // สไตล์การแจ้งเตือนตามระยะเวลา
+    let urgencyBadge = '';
+    let cardBorder = '';
+    let timerBg = '';
+    if(isPast) {
+      urgencyBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500"><i class="fa-solid fa-flag-checkered mr-1"></i>สิ้นสุดแล้ว</span>';
+      cardBorder = 'border-slate-200 bg-white opacity-80';
+      timerBg = 'bg-slate-50 text-slate-600';
+    } else if(days < 3) {
+      urgencyBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-600 border border-rose-200 animate-pulse"><i class="fa-solid fa-fire mr-1"></i>ด่วนมาก! เหลือ < 3 วัน</span>';
+      cardBorder = 'border-rose-300 ring-2 ring-rose-200/60 bg-gradient-to-b from-rose-50/40 via-white to-white';
+      timerBg = 'bg-rose-500 text-white';
+    } else if(days < 7) {
+      urgencyBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200"><i class="fa-solid fa-bell mr-1"></i>ใกล้สอบแล้ว (ใน 7 วัน)</span>';
+      cardBorder = 'border-amber-300 bg-gradient-to-b from-amber-50/30 to-white';
+      timerBg = 'bg-amber-500 text-white';
+    } else {
+      urgencyBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200"><i class="fa-solid fa-clock mr-1"></i>มีเวลาเตรียมตัว</span>';
+      cardBorder = 'border-purple-200 bg-white';
+      timerBg = 'bg-purple-600 text-white';
+    }
+
+    const formattedDate = new Date(item.dateStr).toLocaleString('th-TH', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    return `
+      <div class="rounded-2xl border ${cardBorder} p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="font-black text-slate-800 text-base truncate" title="${item.name}">${item.name}</span>
+            ${urgencyBadge}
+          </div>
+          <p class="text-xs text-slate-500 flex items-center gap-1.5 mb-4 font-medium">
+            <i class="fa-regular fa-calendar text-slate-400"></i> ${formattedDate}
+          </p>
+
+          <!-- Timer Display Boxes -->
+          ${isPast ? `
+            <div class="py-4 text-center rounded-xl bg-slate-100 text-slate-500 text-xs font-bold mb-4">
+              การสอบวิชานี้ผ่านพ้นไปแล้ว
+            </div>
+          ` : `
+            <div class="grid grid-cols-4 gap-2 text-center mb-4 font-mono">
+              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                <span class="block text-xl font-black text-slate-800 leading-tight">${days}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">วัน</span>
+              </div>
+              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                <span class="block text-xl font-black text-slate-800 leading-tight">${String(hours).padStart(2, '0')}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">ชม.</span>
+              </div>
+              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                <span class="block text-xl font-black text-slate-800 leading-tight">${String(mins).padStart(2, '0')}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">นาที</span>
+              </div>
+              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                <span class="block text-xl font-black text-slate-800 leading-tight">${String(secs).padStart(2, '0')}</span>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">วินาที</span>
+              </div>
+            </div>
+          `}
+
+          <!-- Quick Study Readiness Indicator -->
+          <div class="flex items-center justify-between text-[11px] text-slate-500 py-2 px-3 bg-slate-50 rounded-xl border border-slate-100 mb-3">
+            <span title="เอกสารประกอบการเรียน"><i class="fa-solid fa-file-pdf text-blue-500 mr-1"></i>${docCount} เอกสาร</span>
+            <span title="แฟลชการ์ดสำหรับทบทวน"><i class="fa-solid fa-layer-group text-fuchsia-500 mr-1"></i>${fcCount} การ์ด</span>
+            <span title="งานที่เสร็จแล้ว"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>${taskDone}/${taskTotal} งาน</span>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+          <button onclick="selectStudySubjectForExam('${item.name}')" class="flex-1 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-xl transition inline-flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-book-open"></i> เข้าอ่านวิชานี้
+          </button>
+          <button onclick="editExamDatePrompt('${item.name}')" class="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="เปลี่ยนวันสอบ">
+            <i class="fa-solid fa-pen-to-square text-xs"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // เริ่ม Interval นับถอยหลังแบบเรียลไทม์ทุก 1 วินาที (ถ้ายังไม่ได้รัน)
+  if(!countdownInterval) {
+    countdownInterval = setInterval(() => {
+      // อัปเดตเฉพาะเมื่อหน้าจออยู่ที่ tabStudy
+      if(appState.currentTab === 'tabStudy') {
+        renderExamCountdowns();
+      }
+    }, 1000);
+  }
+}
+
+function selectStudySubjectForExam(subjectName) {
+  const filter = document.getElementById('studySubjectFilter');
+  if(filter) {
+    filter.value = subjectName;
+    filterStudyData();
+    // เลื่อนหน้าจอลงไปดูเนื้อหา
+    const tableEl = document.getElementById('studyDocTableBody');
+    if(tableEl) tableEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function editExamDatePrompt(subjectName) {
+  const dates = getExamDates();
+  const cur = dates[subjectName] || '';
+
+  Swal.fire({
+    title: `กำหนดวันสอบ: ${subjectName}`,
+    html: `
+      <div class="text-left space-y-3 pt-2">
+        <label class="block text-xs font-bold text-slate-600">เลือกวันและเวลาสอบ:</label>
+        <input type="datetime-local" id="swalExamDateInput" value="${cur}" class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:border-purple-400">
+        <p class="text-[11px] text-slate-400">หากต้องการลบการนับถอยหลัง ให้กดปุ่ม "ยกเลิกวันสอบ"</p>
+      </div>
+    `,
+    showCancelButton: true,
+    showDenyButton: Boolean(cur),
+    confirmButtonText: 'บันทึกวันสอบ',
+    denyButtonText: 'ยกเลิกวันสอบ',
+    cancelButtonText: 'ปิด',
+    confirmButtonColor: '#9333ea',
+    denyButtonColor: '#ef4444',
+    preConfirm: () => {
+      const val = document.getElementById('swalExamDateInput').value;
+      if(!val) {
+        Swal.showValidationMessage('กรุณาเลือกวันและเวลาสอบ');
+        return false;
+      }
+      return val;
+    }
+  }).then(result => {
+    if(result.isConfirmed) {
+      saveExamDate(subjectName, result.value);
+      Swal.fire({ icon: 'success', title: 'บันทึกวันสอบเรียบร้อย', timer: 1400, showConfirmButton: false });
+    } else if(result.isDenied) {
+      saveExamDate(subjectName, '');
+      Swal.fire({ icon: 'info', title: 'ยกเลิกวันสอบแล้ว', timer: 1400, showConfirmButton: false });
+    }
+  });
+}
+
+// ---------------------------------------------------
 // Subject Manager UI (For all users)
 // ---------------------------------------------------
 function openSubjectManager() {
@@ -1757,26 +1991,67 @@ function openSubjectManager() {
 
 function renderSubjectManagerList() {
   const list = document.getElementById('subjectManagerList');
-  if (appState.subjects.length === 0) {
-    list.innerHTML = `<p class="text-xs text-slate-400">ยังไม่มีวิชา</p>`;
+  if(!list) return;
+
+  const allSubjects = appState.subjects.filter(s => s.name.trim() !== '');
+  if(allSubjects.length === 0) {
+    list.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">ยังไม่มีวิชาในระบบ</p>`;
     return;
   }
-  
-  list.innerHTML = appState.subjects.filter(s => s.name.trim() !== '').map(s => `
-    <div class="flex justify-between items-center bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition">
-      <span class="text-sm font-bold text-slate-700">${s.name}</span>
-      <button onclick="handleDeleteSubject('${s.name}')" class="w-8 h-8 flex justify-center items-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบวิชา"><i class="fa-solid fa-trash-can text-sm"></i></button>
-    </div>
-  `).join('');
+
+  const examDates = getExamDates();
+
+  list.innerHTML = allSubjects.map(s => {
+    const examDate = examDates[s.name] || '';
+    const formatted = examDate ? new Date(examDate).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ยังไม่กำหนดวันสอบ';
+    const hasDate = Boolean(examDate);
+
+    return `
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 rounded-2xl p-3 gap-2 shadow-2xs hover:border-purple-200 transition">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold text-slate-800 truncate">${s.name}</p>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="text-[11px] font-medium ${hasDate ? 'text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md font-bold' : 'text-slate-400'}">
+              <i class="fa-regular fa-clock text-[10px] mr-1"></i>${formatted}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0 justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <button onclick="editExamDatePrompt('${s.name}')" class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs transition inline-flex items-center gap-1">
+            <i class="fa-regular fa-calendar-days text-[11px]"></i> ${hasDate ? 'เปลี่ยนวัน' : 'ใส่วันสอบ'}
+          </button>
+          <button onclick="handleDeleteSubject('${s.name}')" class="w-8 h-8 flex justify-center items-center rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition" title="ลบวิชา">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function handleAddSubjectUI() {
-  const name = document.getElementById('newSubjectNameUI').value;
-  if(!name) return;
-  
+  const nameInput = document.getElementById('newSubjectNameUI');
+  const dateInput = document.getElementById('newSubjectExamDateUI');
+  const name = nameInput?.value?.trim();
+  const examDate = dateInput?.value;
+
+  if(!name) {
+    return Swal.fire('โปรดระบุชื่อวิชา', 'พิมพ์ชื่อวิชาที่ต้องการเพิ่มก่อนกดบันทึก', 'warning');
+  }
+
   fetch(API_URL + `?action=addNewCategory&subjectName=${encodeURIComponent(name)}&username=${appState.username || 'guest'}`).then(() => {
-    document.getElementById('newSubjectNameUI').value = '';
-    refreshData().then(() => renderSubjectManagerList());
+    if(nameInput) nameInput.value = '';
+    if(dateInput) dateInput.value = '';
+
+    if(examDate) {
+      saveExamDate(name, examDate);
+    }
+    refreshData().then(() => {
+      renderSubjectManagerList();
+      renderExamCountdowns();
+    });
+    Swal.fire({ icon: 'success', title: 'เพิ่มวิชาเรียบร้อย', timer: 1200, showConfirmButton: false });
   });
 }
 
@@ -1787,11 +2062,16 @@ function handleDeleteSubject(name) {
     .then(r => r.json())
     .then(res => {
       if(!res.success) return Swal.fire('ลบวิชาไม่สำเร็จ', res.message || 'ไม่สามารถลบวิชาได้', 'warning');
+      saveExamDate(name, ''); // ลบวันสอบของวิชานี้ด้วย
       Swal.fire({ icon: 'success', title: 'ลบวิชาแล้ว', text: 'กำลังอัปเดตรายการวิชา', timer: 1200, showConfirmButton: false });
-      refreshData(true).then(() => renderSubjectManagerList());
+      refreshData(true).then(() => {
+        renderSubjectManagerList();
+        renderExamCountdowns();
+      });
     })
     .catch(() => Swal.fire('เชื่อมต่อไม่ได้', 'ลบวิชาไม่สำเร็จ ลองใหม่อีกครั้ง', 'warning'));
 }
+
 
 // ---------------------------------------------------
 // Folder Explorer (คลังโฟลเดอร์) + Share Links
