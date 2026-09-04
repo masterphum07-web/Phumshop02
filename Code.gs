@@ -201,7 +201,6 @@ function getInitialData() {
     if(categories.length === 0) categories = [{name: "ทั่วไป"}];
     // หน้าจัดการวิชาแสดงทุกหมวดหมู่ที่ผู้ใช้มองเห็น รวมถึงหมวดหมู่ที่มาจากเอกสาร
     const examDates = {};
-    const subjectSheet = ss.getSheetByName("Subjects");
     if(subjectSheet) subjectSheet.getDataRange().getDisplayValues().slice(1).forEach(r => { if(r[2]) examDates[String(r[2])] = r[3] || ''; });
     const managedSubjects = categories.map(c => ({ id: "", name: c.name, examDate: examDates[c.name] || '' }));
 
