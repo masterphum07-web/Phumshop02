@@ -157,14 +157,20 @@ function profileKey() { return 'docHubProfile_' + (appState.username || 'guest')
 function applyProfileDisplay() {
   const p = JSON.parse(localStorage.getItem(profileKey()) || '{}');
   const avatar = document.getElementById('userAvatarDisplay');
-  if(avatar && p.avatar) avatar.innerHTML = `<img src="${p.avatar}" class="w-full h-full object-cover">`;
+  if(avatar) { avatar.style.backgroundColor = p.color || ''; avatar.innerHTML = p.avatar ? `<img src="${p.avatar}" class="w-full h-full object-cover">` : '<i class="fa-solid fa-user"></i>'; }
   const name = document.getElementById('userNameDisplay');
   if(name && appState.username) name.innerText = p.name || appState.username;
 }
 function openProfileEditor() {
   if(!appState.username) return openChangePasswordModal();
   const p = JSON.parse(localStorage.getItem(profileKey()) || '{}');
-  Swal.fire({ title: 'โปรไฟล์ของฉัน', html: `<input id="profileName" class="swal2-input" placeholder="ชื่อที่แสดง" value="${p.name || appState.username}"><input id="profileAvatar" type="file" accept="image/*" class="swal2-file">`, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', preConfirm: () => new Promise(resolve => { const file = document.getElementById('profileAvatar').files[0]; const save = avatar => { localStorage.setItem(profileKey(), JSON.stringify({ name: document.getElementById('profileName').value.trim() || appState.username, avatar: avatar || p.avatar || '' })); applyProfileDisplay(); resolve(); }; if(!file) return save(''); const reader = new FileReader(); reader.onload = () => save(reader.result); reader.readAsDataURL(file); }) }).then(r => { if(r.isConfirmed) Swal.fire({ icon: 'success', title: 'บันทึกโปรไฟล์แล้ว', timer: 1200, showConfirmButton: false }); });
+  Swal.fire({
+    title: 'โปรไฟล์ของฉัน', width: 420, showCancelButton: true,
+    confirmButtonText: 'บันทึกโปรไฟล์', cancelButtonText: 'ยกเลิก',
+    html: `<div class="text-left space-y-4"><div class="flex items-center gap-4"><div id="profilePreview" class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-3xl overflow-hidden shadow-lg">${p.avatar ? `<img src="${p.avatar}" class="w-full h-full object-cover">` : '<i class="fa-solid fa-user"></i>'}</div><label class="flex-1"><span class="block text-xs font-bold text-slate-500 mb-1">รูปประจำตัว</span><input id="profileAvatar" type="file" accept="image/*" class="w-full text-xs"></label></div><label class="block"><span class="block text-xs font-bold text-slate-500 mb-1">ชื่อที่แสดง</span><input id="profileName" class="w-full px-3 py-2.5 rounded-xl border border-slate-200" placeholder="ชื่อที่แสดง" value="${p.name || appState.username}"></label><label class="block"><span class="block text-xs font-bold text-slate-500 mb-1">แนะนำตัว</span><textarea id="profileBio" rows="2" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 resize-none" placeholder="เช่น นักศึกษาปี 2">${p.bio || ''}</textarea></label><label class="block"><span class="block text-xs font-bold text-slate-500 mb-1">สีประจำโปรไฟล์</span><input id="profileColor" type="color" class="w-full h-10 rounded-xl cursor-pointer" value="${p.color || '#4f46e5'}"></label></div>`,
+    didOpen: () => document.getElementById('profileAvatar').addEventListener('change', e => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => document.getElementById('profilePreview').innerHTML = `<img src="${r.result}" class="w-full h-full object-cover">`; r.readAsDataURL(f); }),
+    preConfirm: () => new Promise(resolve => { const file = document.getElementById('profileAvatar').files[0]; const save = avatar => { localStorage.setItem(profileKey(), JSON.stringify({ name: document.getElementById('profileName').value.trim() || appState.username, bio: document.getElementById('profileBio').value.trim(), color: document.getElementById('profileColor').value, avatar: avatar || p.avatar || '' })); applyProfileDisplay(); resolve(); }; if(!file) return save(''); const reader = new FileReader(); reader.onload = () => save(reader.result); reader.readAsDataURL(file); })
+  }).then(r => { if(r.isConfirmed) Swal.fire({ icon: 'success', title: 'บันทึกโปรไฟล์แล้ว', timer: 1200, showConfirmButton: false }); });
 }
 
 function refreshData(forceNetwork = false) {
