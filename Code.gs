@@ -713,7 +713,7 @@ function getFolderByToken(token, requestedFolderId) {
     // ชื่อโฟลเดอร์ย่อยชั้นแรก (ไว้แสดงหัวข้อกลุ่ม)
     const subfolders = (childrenOf[currentId] || []).map(function(id) { return { id: id, name: idToName[id] || id }; });
 
-    return { success: true, folder: { id: currentId, name: idToName[currentId] || String(target[1]) }, path: path, subfolders: subfolders, documents: documents };
+    return { success: true, folder: { id: currentId, name: idToName[currentId] || String(target[1]), parentId: parentOf[currentId] || "" }, path: path, subfolders: subfolders, documents: documents };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 

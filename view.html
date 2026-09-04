@@ -22,6 +22,7 @@
   <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
       <div class="flex items-center gap-3">
+        <button id="sharedBackBtn" onclick="goSharedBack()" class="hidden w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:bg-emerald-100 hover:text-emerald-600 transition" title="ย้อนกลับ"><i class="fa-solid fa-arrow-left"></i></button>
         <div class="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
           <i class="fa-solid fa-folder-open text-lg"></i>
         </div>
@@ -100,6 +101,7 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4EuqBV2_WLFJs5XdogDuVJIQvfbgjZ8Z8Ska80N_P6OBJDk/exec';
 
 const token = new URLSearchParams(location.search).get('f');
+const sharedCache = new Map();
 const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function showError(msg) {
@@ -119,6 +121,7 @@ function renderContent(res) {
   document.getElementById('bannerPath').innerHTML = '<i class="fa-solid fa-location-dot mr-1"></i> ' + esc((res.path || [name]).join(' › '));
   document.getElementById('bannerCount').innerHTML = '<i class="fa-solid fa-file-lines mr-1"></i> ทั้งหมด ' + res.documents.length + ' ไฟล์';
   const sf = document.getElementById('sharedSubfolders');
+  document.getElementById('sharedBackBtn').classList.toggle('hidden', !res.folder.parentId);
   sf.innerHTML = (res.subfolders || []).map(f => `<button onclick="loadSharedFolder('${f.id}')" class="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-400 hover:shadow-md transition"><i class="fa-solid fa-folder-tree text-teal-500 mr-2"></i><span class="font-bold text-slate-700 text-sm">${esc(f.name)}</span><i class="fa-solid fa-chevron-right float-right text-slate-300 mt-1"></i></button>`).join('');
 
   const tb = document.getElementById('sharedDocTable');
@@ -157,23 +160,29 @@ function renderContent(res) {
   tb.innerHTML = html;
 }
 
-function loadSharedFolder(folderId) {
+function loadSharedFolder(folderId, fromHistory = false) {
+  const key = folderId || '__root__';
+  if(!fromHistory) history.pushState({ folderId: folderId || '' }, '', '#folder=' + encodeURIComponent(folderId || ''));
+  if(sharedCache.has(key)) { renderContent(sharedCache.get(key)); return; }
   document.getElementById('contentState').classList.add('opacity-60');
   fetch(API_URL + '?action=getFolderByToken&token=' + encodeURIComponent(token) + '&folderId=' + encodeURIComponent(folderId))
-    .then(r => r.json()).then(res => { document.getElementById('contentState').classList.remove('opacity-60'); if(res.success) renderContent(res); else showError(res.message); })
+    .then(r => r.json()).then(res => { document.getElementById('contentState').classList.remove('opacity-60'); if(res.success) { sharedCache.set(key, res); renderContent(res); } else showError(res.message); })
     .catch(() => { document.getElementById('contentState').classList.remove('opacity-60'); showError('เชื่อมต่อไม่สำเร็จ ลองรีเฟรชอีกครั้ง'); });
 }
+
+function goSharedBack() { if(history.length > 1) history.back(); else loadSharedFolder(''); }
+window.addEventListener('popstate', e => loadSharedFolder((e.state && e.state.folderId) || '', true));
 
 if(!token) {
   showError('ไม่พบรหัสโฟลเดอร์ในลิงก์');
 } else {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 10000);
   fetch(API_URL + '?action=getFolderByToken&token=' + encodeURIComponent(token), { signal: controller.signal })
     .then(r => r.json())
     .then(res => {
       clearTimeout(timer);
-      if(res.success) renderContent(res);
+      if(res.success) { sharedCache.set('__root__', res); history.replaceState({ folderId: '' }, '', location.pathname + location.search); renderContent(res); }
       else showError(res.message);
     })
     .catch(() => showError('เชื่อมต่อไม่สำเร็จ ลองรีเฟรชอีกครั้ง'));
