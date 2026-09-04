@@ -86,7 +86,7 @@ function handleRequest(data) {
   } else if (action === 'setFolderShare') {
     return setFolderShare(data.folderId, data.enabled, data.username);
   } else if (action === 'getFolderByToken') {
-    return getFolderByToken(data.token);
+    return getFolderByToken(data.token, data.folderId);
   } else if (action === 'syncFromDrive') {
     return syncFromDrive(data.username);
   } else if (action === 'getDriveUsage') {
@@ -652,7 +652,7 @@ function setFolderShare(folderId, enabled, username) {
 }
 
 // หน้าแชร์สาธารณะ: ให้คนมีลิงก์ดูไฟล์ในโฟลเดอร์ + โฟลเดอร์ย่อยทั้งหมด (อ่านอย่างเดียว)
-function getFolderByToken(token) {
+function getFolderByToken(token, requestedFolderId) {
   try {
     if(!token) return { success: false, message: "ลิงก์ไม่ถูกต้อง" };
     const ss = getSS();
@@ -681,17 +681,19 @@ function getFolderByToken(token) {
       childrenOf[p].push(id);
     }
 
-    // เก็บโฟลเดอร์ย่อยทั้งหมด (ลูก หลาน ฯลฯ)
-    const includeIds = [String(target[0])];
-    const queue = [String(target[0])];
+    const rootId = String(target[0]);
+    let currentId = requestedFolderId ? String(requestedFolderId) : rootId;
+    const descendants = {};
+    const queue = [rootId];
     while(queue.length > 0) {
       const cur = queue.shift();
-      (childrenOf[cur] || []).forEach(function(childId) { includeIds.push(childId); queue.push(childId); });
+      (childrenOf[cur] || []).forEach(function(childId) { descendants[childId] = true; queue.push(childId); });
     }
+    if(currentId !== rootId && !descendants[currentId]) return { success: false, message: "โฟลเดอร์นี้อยู่นอกลิงก์แชร์" };
 
     // เส้นทาง breadcrumb
-    const path = [String(target[1])];
-    let pid = parentOf[String(target[0])] || "";
+    const path = [idToName[currentId] || String(target[1])];
+    let pid = parentOf[currentId] || "";
     let guard = 0;
     while(pid && idToName[pid] && guard < 20) { path.unshift(idToName[pid]); pid = parentOf[pid] || ""; guard++; }
 
@@ -702,16 +704,16 @@ function getFolderByToken(token) {
       const dData = docSheet.getDataRange().getDisplayValues();
       for(let i=1; i<dData.length; i++) {
         const fid = dData[i][9] ? String(dData[i][9]) : "";
-        if(fid && includeIds.indexOf(fid) !== -1) {
+        if(fid === currentId) {
           documents.push({ title: String(dData[i][2] || "ไม่มีชื่อ"), uploader: dData[i][4] ? String(dData[i][4]) : "-", docType: dData[i][8] ? String(dData[i][8]) : "ทั่วไป", fileUrl: dData[i][5] ? String(dData[i][5]) : "#", folderName: idToName[fid] || "" });
         }
       }
     }
 
     // ชื่อโฟลเดอร์ย่อยชั้นแรก (ไว้แสดงหัวข้อกลุ่ม)
-    const subfolders = (childrenOf[String(target[0])] || []).map(function(id) { return { name: idToName[id] || id }; });
+    const subfolders = (childrenOf[currentId] || []).map(function(id) { return { id: id, name: idToName[id] || id }; });
 
-    return { success: true, folder: { name: String(target[1]) }, path: path, subfolders: subfolders, documents: documents };
+    return { success: true, folder: { id: currentId, name: idToName[currentId] || String(target[1]) }, path: path, subfolders: subfolders, documents: documents };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 

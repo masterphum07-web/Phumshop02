@@ -68,6 +68,8 @@
         </div>
       </div>
 
+      <div id="sharedSubfolders" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+
       <!-- File list -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -116,6 +118,8 @@ function renderContent(res) {
   document.getElementById('bannerFolderName').innerText = name;
   document.getElementById('bannerPath').innerHTML = '<i class="fa-solid fa-location-dot mr-1"></i> ' + esc((res.path || [name]).join(' › '));
   document.getElementById('bannerCount').innerHTML = '<i class="fa-solid fa-file-lines mr-1"></i> ทั้งหมด ' + res.documents.length + ' ไฟล์';
+  const sf = document.getElementById('sharedSubfolders');
+  sf.innerHTML = (res.subfolders || []).map(f => `<button onclick="loadSharedFolder('${f.id}')" class="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-400 hover:shadow-md transition"><i class="fa-solid fa-folder-tree text-teal-500 mr-2"></i><span class="font-bold text-slate-700 text-sm">${esc(f.name)}</span><i class="fa-solid fa-chevron-right float-right text-slate-300 mt-1"></i></button>`).join('');
 
   const tb = document.getElementById('sharedDocTable');
   if(res.documents.length === 0) {
@@ -151,6 +155,13 @@ function renderContent(res) {
       </tr>`).join('');
   });
   tb.innerHTML = html;
+}
+
+function loadSharedFolder(folderId) {
+  document.getElementById('contentState').classList.add('opacity-60');
+  fetch(API_URL + '?action=getFolderByToken&token=' + encodeURIComponent(token) + '&folderId=' + encodeURIComponent(folderId))
+    .then(r => r.json()).then(res => { document.getElementById('contentState').classList.remove('opacity-60'); if(res.success) renderContent(res); else showError(res.message); })
+    .catch(() => { document.getElementById('contentState').classList.remove('opacity-60'); showError('เชื่อมต่อไม่สำเร็จ ลองรีเฟรชอีกครั้ง'); });
 }
 
 if(!token) {
