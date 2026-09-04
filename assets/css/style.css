@@ -233,6 +233,8 @@ body.dark #fileShareQrBox img, body.dark #fileShareQrBox canvas { background: #f
 body.dark #syncModal > div { background: linear-gradient(to right, rgba(16, 185, 129, .2), rgba(13, 148, 136, .22)) !important; }
 body.dark .from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, .22) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
 body.dark .to-teal-50 { --tw-gradient-to: rgba(13, 148, 136, .25) !important; }
+body.dark #examCountdownGrid > div.bg-gradient-to-r { background: #1e293b !important; border-color: #475569 !important; }
+body.dark #examCountdownGrid > div.bg-gradient-to-r .bg-white { background-color: #334155 !important; }
 
 /* ป้องกันสีจากธีมที่บันทึกไว้ทับโหมดมืด */
 body.dark #tabMain .bg-white, body.dark #tabFolders .bg-white, body.dark #tabStudy .bg-white, body.dark #tabDashboard .bg-white,

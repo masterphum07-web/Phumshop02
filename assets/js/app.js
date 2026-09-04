@@ -1825,7 +1825,8 @@ function renderExamCountdowns() {
 
   allSubjectNames.forEach(name => {
     if(!name || name.trim() === '') return;
-    const dateStr = datesMap[name];
+    const subjectData = appState.subjects.find(s => s.name === name);
+    const dateStr = datesMap[name] || subjectData?.examDate || '';
     if(dateStr) {
       const examTime = new Date(dateStr).getTime();
       subjectsWithExam.push({
