@@ -245,6 +245,7 @@ function getInitialData() {
       primary_color: settings.primaryColor, accent_color: settings.accentColor,
       background_color: settings.backgroundColor, banner_button_text: settings.bannerButtonText,
       show_banner: settings.showBanner, site_icon: settings.siteIcon,
+      site_logo: settings.siteLogo || "",
       site_font: settings.siteFont, corner_style: settings.cornerStyle,
       animations_enabled: settings.animationsEnabled, footer_text: settings.footerText,
       line_token: settings.lineToken || "", line_target: settings.lineTarget || ""
@@ -1162,6 +1163,7 @@ function setupAllSheets(ss) {
     sett.appendRow(["bannerButtonText", "เริ่มต้นใช้งาน"]);
     sett.appendRow(["showBanner", "true"]);
     sett.appendRow(["siteIcon", "fa-layer-group"]);
+    sett.appendRow(["siteLogo", ""]);
     sett.getRange(1, 1, 1, 2).setFontWeight("bold").setBackground(HEADER_BG);
   }
 

@@ -140,6 +140,10 @@ function applyInitialData(res) {
     document.getElementById('settingBannerButtonText').value = settings.banner_button_text || 'เริ่มต้นใช้งาน';
     document.getElementById('settingShowBanner').checked = settings.show_banner !== 'false';
     document.getElementById('settingSiteIcon').value = settings.site_icon || 'fa-layer-group';
+    const logoInput = document.getElementById('settingSiteLogo');
+    if(logoInput) logoInput.value = settings.site_logo || '';
+    const logoPreview = document.getElementById('siteLogoPreview');
+    if(logoPreview) logoPreview.src = settings.site_logo || 'assets/download.jfif?v=1';
     document.getElementById('settingSiteFont').value = settings.site_font || 'Prompt';
     document.getElementById('settingCornerStyle').value = settings.corner_style || 'soft';
     document.getElementById('settingFooterText').value = settings.footer_text || '';
@@ -1631,6 +1635,7 @@ function saveSettings() {
       bannerButtonText: document.getElementById('settingBannerButtonText').value,
       showBanner: document.getElementById('settingShowBanner').checked ? 'true' : 'false',
       siteIcon: document.getElementById('settingSiteIcon').value,
+      siteLogo: document.getElementById('settingSiteLogo')?.value.trim() || '',
       siteFont: document.getElementById('settingSiteFont').value,
       cornerStyle: document.getElementById('settingCornerStyle').value,
       animationsEnabled: document.getElementById('settingAnimations').checked ? 'true' : 'false',
@@ -1659,6 +1664,11 @@ function applySiteSettings(settings) {
   if(settings.site_font) document.body.style.fontFamily = `'${settings.site_font}', 'Prompt', sans-serif`;
   document.body.classList.toggle('style-square', settings.corner_style === 'square');
   document.body.classList.toggle('no-anim', settings.animations_enabled === 'false');
+  const logoUrl = settings.site_logo || 'assets/download.jfif?v=1';
+  const logoImg = document.getElementById('siteLogoImg');
+  if(logoImg) logoImg.src = logoUrl;
+  const logoPreview = document.getElementById('siteLogoPreview');
+  if(logoPreview) logoPreview.src = logoUrl;
   const footerEl = document.getElementById('footerTextEl');
   if(footerEl) footerEl.innerText = settings.footer_text || '📚 DOC HUB — ระบบคลังเอกสาร';
   const banner = document.getElementById('bannerTitle')?.closest('.bg-white');
@@ -1673,6 +1683,23 @@ function applySiteSettings(settings) {
     icon.parentElement.style.background = `linear-gradient(135deg, ${settings.primary_color || '#2563eb'}, ${settings.accent_color || '#9333ea'})`;
   }
 }
+
+function initSiteLogoPicker() {
+  const fileInput = document.getElementById('settingSiteLogoFile');
+  const urlInput = document.getElementById('settingSiteLogo');
+  const preview = document.getElementById('siteLogoPreview');
+  if(!fileInput || !urlInput || !preview) return;
+  urlInput.addEventListener('input', () => { if(urlInput.value.trim()) preview.src = urlInput.value.trim(); });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if(!file) return;
+    if(file.size > 100 * 1024) { fileInput.value = ''; return Swal.fire('รูปใหญ่เกินไป', 'กรุณาเลือกรูปไม่เกิน 100 KB', 'warning'); }
+    const reader = new FileReader();
+    reader.onload = () => { urlInput.value = reader.result; preview.src = reader.result; };
+    reader.readAsDataURL(file);
+  });
+}
+document.addEventListener('DOMContentLoaded', initSiteLogoPicker);
 
 function applyThemePreset(primary, accent, bg) {
   document.getElementById('settingPrimaryColor').value = primary;

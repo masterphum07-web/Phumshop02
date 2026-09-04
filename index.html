@@ -75,7 +75,7 @@
       <div class="flex justify-between items-center h-16">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transform hover:scale-105 transition cursor-pointer">
-            <img src="assets/download.jfif?v=1" alt="PHUMSHOP WEB" class="w-full h-full object-cover rounded-xl">
+            <img id="siteLogoImg" src="assets/download.jfif?v=1" alt="PHUMSHOP WEB" class="w-full h-full object-cover rounded-xl">
           </div>
           <span class="font-black text-xl tracking-tight text-slate-800" id="navTitle">PHUMSHOP WEB</span>
         </div>
@@ -686,6 +686,15 @@
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">ไอคอนเว็บ (Font Awesome)</label>
               <input type="text" id="settingSiteIcon" placeholder="fa-layer-group" class="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-pink-400 outline-none transition">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500 mb-1">รูปโลโก้เว็บ (เปลี่ยนรูปตรง Header)</label>
+              <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                <input type="url" id="settingSiteLogo" placeholder="วางลิงก์รูปภาพ https://... หรือเลือกไฟล์ด้านขวา" class="flex-1 px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-pink-400 outline-none transition">
+                <label class="shrink-0 px-4 py-2.5 bg-slate-800 text-white text-xs font-bold rounded-xl cursor-pointer text-center hover:bg-slate-700 transition"><i class="fa-solid fa-image mr-1"></i> เลือกรูปจากเครื่อง<input type="file" id="settingSiteLogoFile" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden"></label>
+                <img id="siteLogoPreview" src="assets/download.jfif?v=1" alt="ตัวอย่างโลโก้" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0">
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">แนะนำ PNG/JPG/WebP ขนาดไม่เกิน 100 KB เพื่อให้เว็บโหลดเร็ว</p>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">สีหลัก</label>
