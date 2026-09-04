@@ -443,7 +443,7 @@ function uploadFileToDrive(base64Data, filename, mimeType, category, uploader, d
     const finalCategory = category || folderPath || "ทั่วไป";
     docSheet.appendRow([new Date(), "-", docTitle || filename, "อัปโหลดไฟล์", uploader, file.getUrl(), finalCategory, filename, docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`อัปโหลดไฟล์: ${docTitle || filename} โดย ${uploader}`);
-    const lineSent = sendLineMessage(`📄 มีเอกสารใหม่\n📝 ${docTitle || filename}\n👤 โดย ${uploader || "-"}\n🕒 ${formatLineDate(new Date())}${folderPath ? "\n📁 " + folderPath : ""}`);
+    const lineSent = sendLineMessage(`📄 มีเอกสารใหม่\nชื่อเอกสาร: ${docTitle || filename}\nผู้เพิ่มเอกสาร: ${uploader || "-"}\nเวลา: ${formatLineDate(new Date())}${folderPath ? "\nโฟลเดอร์: " + folderPath : ""}`);
     return { success: true, lineSent: lineSent };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
@@ -457,7 +457,7 @@ function uploadDocumentByLink(docTitle, url, category, uploader, docType, folder
     const finalCategory = category || folderPath || "ทั่วไป";
     if(docSheet) docSheet.appendRow([new Date(), "-", docTitle, "เพิ่มจากลิงก์", uploader, url, finalCategory, "External Link", docType || "ทั่วไป", folderId || "", 0]);
     logActivity(`เพิ่มเอกสารใหม่จากลิงก์: ${docTitle} โดย ${uploader}`);
-    const lineSent = sendLineMessage(`🔗 เพิ่มเอกสารใหม่ (ลิงก์)\n📝 ${docTitle}\n👤 โดย ${uploader || "-"}\n🕒 ${formatLineDate(new Date())}${folderPath ? "\n📁 " + folderPath : ""}`);
+    const lineSent = sendLineMessage(`🔗 เพิ่มเอกสารใหม่ (ลิงก์)\nชื่อเอกสาร: ${docTitle}\nผู้เพิ่มเอกสาร: ${uploader || "-"}\nเวลา: ${formatLineDate(new Date())}${folderPath ? "\nโฟลเดอร์: " + folderPath : ""}`);
     return { success: true, lineSent: lineSent };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
@@ -903,7 +903,7 @@ function setLineConfig(token, target, username) {
 }
 
 function testLineMessage() {
-  const ok = sendLineMessage('✅ ทดสอบจาก PHUMSHOP 02 — ถ้าเห็นข้อความนี้แปลว่าเชื่อมต่อ LINE สำเร็จแล้ว');
+  const ok = sendLineMessage('✅ ทดสอบการแจ้งเตือนจาก PHUMSHOP 02\nประเภท: ข้อความทดสอบ\nผู้ส่ง: ระบบ PHUMSHOP\nถ้าเห็นข้อความนี้ แปลว่าเชื่อมต่อ LINE สำเร็จแล้ว');
   return ok
     ? { success: true, message: 'ส่งข้อความทดสอบแล้ว ไปดูใน LINE ของคุณ' }
     : { success: false, message: 'ส่งไม่สำเร็จ — ตรวจ Channel Access Token ให้แน่ใจ (ยาวประมาณ 170+ ตัวอักษร) และต้องมีคนเพิ่มบอทเป็นเพื่อนอย่างน้อย 1 คน' };
@@ -960,7 +960,7 @@ function reportBrokenLink(docId, username, note) {
     const title = sheet.getRange(rowNum, 3).getDisplayValue();
     const url = String(sheet.getRange(rowNum, 6).getDisplayValue() || "");
     logActivity(`🚨 ${username || "ผู้ใช้"} แจ้งลิงก์เสีย: ${title}`);
-    const lineSent = sendLineMessage(`🚨 แจ้งลิงก์เสีย\n📄 ${title}\n🔗 ${url}\n👤 แจ้งโดย ${username || "ผู้ใช้"}${note ? "\n📝 " + note : ""}`);
+    const lineSent = sendLineMessage(`🚨 แจ้งลิงก์เสีย\nชื่อเอกสาร: ${title}\nลิงก์: ${url}\nผู้แจ้ง: ${username || "ผู้ใช้"}${note ? "\nรายละเอียด: " + note : ""}`);
     return { success: true, lineSent: lineSent };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
