@@ -233,3 +233,19 @@ body.dark #fileShareQrBox img, body.dark #fileShareQrBox canvas { background: #f
 body.dark #syncModal > div { background: linear-gradient(to right, rgba(16, 185, 129, .2), rgba(13, 148, 136, .22)) !important; }
 body.dark .from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, .22) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
 body.dark .to-teal-50 { --tw-gradient-to: rgba(13, 148, 136, .25) !important; }
+
+/* ป้องกันสีจากธีมที่บันทึกไว้ทับโหมดมืด */
+body.dark #tabMain .bg-white, body.dark #tabFolders .bg-white, body.dark #tabStudy .bg-white, body.dark #tabDashboard .bg-white,
+body.dark #tabMain .bg-white\/80, body.dark #tabFolders .bg-white\/80, body.dark #tabStudy .bg-white\/80, body.dark #tabDashboard .bg-white\/80 {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+body.dark #tabMain .bg-slate-50, body.dark #tabFolders .bg-slate-50, body.dark #tabStudy .bg-slate-50, body.dark #tabDashboard .bg-slate-50,
+body.dark #tabMain thead, body.dark #tabFolders thead, body.dark #tabStudy thead, body.dark #tabDashboard thead {
+  background-color: #0f172a !important;
+  color: #cbd5e1 !important;
+}
+body.dark label, body.dark h1, body.dark h2, body.dark h3, body.dark h4,
+body.dark #tabMain p, body.dark #tabFolders p, body.dark #tabStudy p, body.dark #tabDashboard p,
+body.dark #tabMain th, body.dark #tabFolders th, body.dark #tabStudy th, body.dark #tabDashboard th { color: #e2e8f0; }
+body.dark .text-slate-400, body.dark .text-slate-500 { color: #94a3b8 !important; }
