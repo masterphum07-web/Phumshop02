@@ -239,6 +239,9 @@ body.dark .popular-card { background: #1e293b !important; border-color: #475569 
 body.dark .popular-card .border-t { border-color: #334155 !important; }
 body.dark .popular-card .bg-slate-100 { background-color: #334155 !important; }
 body.dark .popular-card .text-slate-800, body.dark .popular-card .text-slate-600 { color: #e2e8f0 !important; }
+body.dark .countdown-card { background: #1e293b !important; border-color: #475569 !important; color: #e2e8f0 !important; opacity: 1 !important; }
+body.dark .countdown-card .bg-slate-50, body.dark .countdown-card .bg-slate-100 { background-color: #0f172a !important; border-color: #334155 !important; }
+body.dark .countdown-card .text-slate-800, body.dark .countdown-card .text-slate-600 { color: #f1f5f9 !important; }
 body.dark #examCountdownGrid > div.bg-gradient-to-r { background: #1e293b !important; border-color: #475569 !important; }
 body.dark #examCountdownGrid > div.bg-gradient-to-r .bg-white { background-color: #334155 !important; }
 

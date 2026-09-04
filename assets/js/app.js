@@ -1908,7 +1908,7 @@ function renderExamCountdowns() {
     });
 
     return `
-      <div class="rounded-2xl border ${cardBorder} p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+      <div class="countdown-card rounded-2xl border ${cardBorder} p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="font-black text-slate-800 text-base truncate" title="${item.name}">${item.name}</span>
