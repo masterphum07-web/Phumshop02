@@ -1806,13 +1806,25 @@ function renderExamCountdowns() {
     }
   });
 
+  sec.classList.remove('hidden');
+
   if(subjectsWithExam.length === 0) {
-    sec.classList.add('hidden');
+    if(countBadge) countBadge.innerText = '0 วิชา';
+    grid.innerHTML = `
+      <div class="col-span-full bg-gradient-to-r from-purple-50/60 via-pink-50/40 to-slate-50 border-2 border-dashed border-purple-200/80 rounded-2xl p-6 text-center">
+        <div class="w-12 h-12 bg-white rounded-2xl shadow-sm text-purple-600 flex items-center justify-center mx-auto mb-3 text-xl border border-purple-100">
+          <i class="fa-regular fa-calendar-check"></i>
+        </div>
+        <h4 class="text-sm font-bold text-slate-700 mb-1">ยังไม่ได้กำหนดวันสอบสำหรับวิชาใดๆ</h4>
+        <p class="text-xs text-slate-500 max-w-md mx-auto mb-4">คลิกปุ่มด้านล่างเพื่อเลือกวิชาและกำหนดวันสอบ ระบบจะเริ่มนับถอยหลังและแจ้งเตือนให้ทันที</p>
+        <button onclick="openSubjectManager()" class="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-bold text-xs rounded-xl shadow-md hover:from-purple-700 hover:to-fuchsia-700 transition">
+          <i class="fa-solid fa-calendar-plus"></i> กำหนดวันสอบตอนนี้
+        </button>
+      </div>
+    `;
     if(countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     return;
   }
-
-  sec.classList.remove('hidden');
   if(countBadge) countBadge.innerText = `${subjectsWithExam.length} วิชา`;
 
   // เรียงลำดับวิชาที่สอบใกล้ที่สุดขึ้นก่อน
