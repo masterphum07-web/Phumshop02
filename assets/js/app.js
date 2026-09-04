@@ -783,7 +783,7 @@ function renderPopular() {
                       : i === 2 ? 'border-orange-200 bg-gradient-to-b from-orange-50/30 to-white' 
                       : 'border-slate-200 bg-white';
     return `
-    <div onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="${borderStyle} rounded-2xl border p-4 shadow-sm hover:shadow-xl hover:border-orange-400 transition cursor-pointer hover:-translate-y-1 relative group">
+    <div onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="popular-card ${borderStyle} rounded-2xl border p-4 shadow-sm hover:shadow-xl hover:border-orange-400 transition cursor-pointer hover:-translate-y-1 relative group">
       <div class="flex items-center justify-between mb-2">
         <span class="text-2xl">${medals[i] || '📄'}</span>
         <span class="text-[11px] font-black text-orange-600 bg-orange-100/80 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
