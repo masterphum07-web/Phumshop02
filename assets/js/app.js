@@ -150,6 +150,21 @@ function applyInitialData(res) {
   const lt = document.getElementById('lineTokenInput'); if(lt) lt.value = settings.line_token || '';
   const ltt = document.getElementById('lineTargetInput'); if(ltt) ltt.value = settings.line_target || '';
   if(appState.username && appState.role === 'admin') updateDashboardStats();
+  applyProfileDisplay();
+}
+
+function profileKey() { return 'docHubProfile_' + (appState.username || 'guest'); }
+function applyProfileDisplay() {
+  const p = JSON.parse(localStorage.getItem(profileKey()) || '{}');
+  const avatar = document.getElementById('userAvatarDisplay');
+  if(avatar && p.avatar) avatar.innerHTML = `<img src="${p.avatar}" class="w-full h-full object-cover">`;
+  const name = document.getElementById('userNameDisplay');
+  if(name && appState.username) name.innerText = p.name || appState.username;
+}
+function openProfileEditor() {
+  if(!appState.username) return openChangePasswordModal();
+  const p = JSON.parse(localStorage.getItem(profileKey()) || '{}');
+  Swal.fire({ title: 'โปรไฟล์ของฉัน', html: `<input id="profileName" class="swal2-input" placeholder="ชื่อที่แสดง" value="${p.name || appState.username}"><input id="profileAvatar" type="file" accept="image/*" class="swal2-file">`, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', preConfirm: () => new Promise(resolve => { const file = document.getElementById('profileAvatar').files[0]; const save = avatar => { localStorage.setItem(profileKey(), JSON.stringify({ name: document.getElementById('profileName').value.trim() || appState.username, avatar: avatar || p.avatar || '' })); applyProfileDisplay(); resolve(); }; if(!file) return save(''); const reader = new FileReader(); reader.onload = () => save(reader.result); reader.readAsDataURL(file); }) }).then(r => { if(r.isConfirmed) Swal.fire({ icon: 'success', title: 'บันทึกโปรไฟล์แล้ว', timer: 1200, showConfirmButton: false }); });
 }
 
 function refreshData(forceNetwork = false) {
@@ -1133,6 +1148,13 @@ async function handleFormSubmit(e) {
 
   } else {
     if(appState.selectedFiles.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกไฟล์ก่อนอัปโหลด', 'warning');
+
+    const existing = new Set(appState.documents.map(d => String(d.originalFilename || d.title || '').trim().toLowerCase()).filter(Boolean));
+    const duplicates = appState.selectedFiles.filter(f => existing.has(f.name.trim().toLowerCase())).map(f => f.name);
+    if(duplicates.length) {
+      const ask = await Swal.fire({ icon: 'warning', title: 'พบไฟล์ชื่อซ้ำ', html: `<div class="text-sm text-left">${duplicates.map(n => `<div>• ${n}</div>`).join('')}</div><p class="text-xs text-slate-500 mt-3">ต้องการอัปโหลดต่อหรือไม่</p>`, showCancelButton: true, confirmButtonText: 'อัปโหลดต่อ', cancelButtonText: 'ยกเลิก' });
+      if(!ask.isConfirmed) return;
+    }
 
     Swal.fire({ title: 'กำลังอัปโหลดไฟล์...', text: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่าง)', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
