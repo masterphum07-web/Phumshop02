@@ -59,6 +59,8 @@ function handleRequest(data) {
     return registerUser(data.username, data.password);
   } else if (action === 'addNewCategory') {
     return addNewCategory(data.subjectName, data.username);
+  } else if (action === 'updateExamDate') {
+    return updateExamDate(data.subjectName, data.examDate, data.username);
   } else if (action === 'deleteCategory') {
     return deleteCategory(data.subjectName, data.username);
   } else if (action === 'uploadFileToDrive') {
@@ -198,7 +200,10 @@ function getInitialData() {
     let categories = Array.from(categoriesSet).map(c => ({name: c}));
     if(categories.length === 0) categories = [{name: "ทั่วไป"}];
     // หน้าจัดการวิชาแสดงทุกหมวดหมู่ที่ผู้ใช้มองเห็น รวมถึงหมวดหมู่ที่มาจากเอกสาร
-    const managedSubjects = categories.map(c => ({ id: "", name: c.name }));
+    const examDates = {};
+    const subjectSheet = ss.getSheetByName("Subjects");
+    if(subjectSheet) subjectSheet.getDataRange().getDisplayValues().slice(1).forEach(r => { if(r[2]) examDates[String(r[2])] = r[3] || ''; });
+    const managedSubjects = categories.map(c => ({ id: "", name: c.name, examDate: examDates[c.name] || '' }));
 
     // 3. ดึงข้อมูล Tasks
     let tasks = [];
@@ -244,7 +249,7 @@ function getInitialData() {
       site_font: settings.siteFont, corner_style: settings.cornerStyle,
       animations_enabled: settings.animationsEnabled, footer_text: settings.footerText,
       line_token: settings.lineToken || "", line_target: settings.lineTarget || ""
-    }, categories: categories, subjects: managedSubjects, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
+    }, categories: categories, subjects: managedSubjects, examDates: examDates, documents: documents, tasks: tasks, flashcards: flashcards, folders: folders, driveFolderUrl: "https://drive.google.com/drive/folders/" + FOLDER_ID };
   } catch (e) {
     return { success: false, error: e.toString() };
   }
@@ -315,6 +320,21 @@ function addNewCategory(subjectName, username) {
     sheet.appendRow(["SUB_" + Utilities.getUuid().substring(0,8), username || "admin", subjectName, ""]);
     logActivity(`${username || "ผู้ใช้"} เพิ่มวิชาใหม่: ${subjectName}`);
     return { success: true, message: "เพิ่มวิชาเรียบร้อย" };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function updateExamDate(subjectName, examDate, username) {
+  try {
+    const ss = getSS(), sheet = ss.getSheetByName('Subjects');
+    if(!sheet) return { success: false, message: 'ไม่พบชีต Subjects' };
+    const rows = sheet.getDataRange().getDisplayValues();
+    for(let i = 1; i < rows.length; i++) {
+      if(String(rows[i][2]).trim().toLowerCase() === String(subjectName).trim().toLowerCase()) {
+        sheet.getRange(i + 1, 4).setValue(examDate || '');
+        return { success: true };
+      }
+    }
+    return { success: false, message: 'ไม่พบวิชานี้ในระบบ' };
   } catch(e) { return { success: false, message: e.toString() }; }
 }
 

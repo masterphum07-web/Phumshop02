@@ -4,7 +4,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwjYup8CQhSfWIAQ9vuu4Eu
 let appState = {
   documents: [], categories: [], subjects: [], tasks: [], flashcards: [], logs: [], folders: [],
   username: '', role: '',
-  selectedFiles: [], currentMode: 'file', currentTab: 'tabMain',
+  selectedFiles: [], currentMode: 'file', currentTab: 'tabMain', examDates: {},
   currentFolderId: '', favorites: [],
   activeTag: ''
 };
@@ -120,6 +120,7 @@ function applyInitialData(res) {
   appState.documents = [...(res.documents || [])].reverse();
   appState.categories = res.categories || [];
   appState.subjects = res.subjects || [];
+  appState.examDates = res.examDates || {};
   appState.tasks = [...(res.tasks || [])].reverse();
   appState.flashcards = [...(res.flashcards || [])].reverse();
   appState.folders = res.folders || [];
@@ -1780,13 +1781,15 @@ if (fcContainer) {
 // ---------------------------------------------------
 function getExamDates() {
   try {
-    return JSON.parse(localStorage.getItem('docHubExamDates') || '{}');
+    return { ...JSON.parse(localStorage.getItem('docHubExamDates') || '{}'), ...(appState.examDates || {}) };
   } catch(e) {
     return {};
   }
 }
 
 function saveExamDate(subjectName, examDateStr) {
+  fetch(API_URL + `?action=updateExamDate&subjectName=${encodeURIComponent(subjectName)}&examDate=${encodeURIComponent(examDateStr || '')}&username=${encodeURIComponent(appState.username || 'admin')}`).catch(() => {});
+  appState.examDates[subjectName] = examDateStr || '';
   const dates = getExamDates();
   if(!examDateStr) {
     delete dates[subjectName];
