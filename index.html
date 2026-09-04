@@ -132,39 +132,107 @@
           <p class="text-slate-500 font-medium text-sm sm:text-base max-w-2xl mx-auto" id="bannerSubtitle">โปรดรอสักครู่ ระบบกำลังเชื่อมต่อฐานข้อมูล</p>
         </div>
 
-        <!-- ไฟล์ยอดนิยม -->
+        <!-- ไฟล์ยอดนิยม & Leaderboard -->
         <div id="popularSection" class="hidden">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-9 h-9 rounded-xl bg-orange-100 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-fire"></i></div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20"><i class="fa-solid fa-trophy text-lg"></i></div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-black text-slate-800 text-base">อันดับไฟล์ยอดนิยม (Leaderboard)</h3>
+                  <span class="text-[10px] font-black uppercase px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full">Top 5</span>
+                </div>
+                <p class="text-xs text-slate-400">เอกสารที่มีผู้เข้าชมและศึกษามากที่สุด</p>
+              </div>
+            </div>
             <div>
-              <h3 class="font-bold text-slate-800">ไฟล์ยอดนิยม</h3>
-              <p class="text-xs text-slate-400">เอกสารที่เพื่อนๆ เปิดดูมากที่สุด</p>
+              <button onclick="openLeaderboardModal()" class="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-orange-50 text-orange-600 border border-orange-200 hover:border-orange-300 font-bold text-xs rounded-xl shadow-sm transition transform hover:-translate-y-0.5">
+                <i class="fa-solid fa-ranking-star"></i> ดูตารางจัดอันดับทั้งหมด (<span id="totalViewedDocsCount">0</span>)
+              </button>
             </div>
           </div>
           <div id="popularList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
         </div>
 
+
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div class="lg:col-span-8">
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-              <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shadow-inner"><i class="fa-solid fa-folder-open"></i></div>
-                  <div>
-                    <h2 class="text-lg font-bold text-slate-800">คลังเอกสารทั่วไป</h2>
-                    <p class="text-xs text-slate-500">ค้นหาและดาวน์โหลดเอกสารทั้งหมด</p>
+              <div class="p-5 border-b border-slate-100 bg-slate-50/70 space-y-3">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shadow-inner shrink-0"><i class="fa-solid fa-folder-open"></i></div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h2 class="text-lg font-bold text-slate-800">คลังเอกสารทั่วไป</h2>
+                        <span id="docCountBadge" class="text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-full">0 ไฟล์</span>
+                      </div>
+                      <p class="text-xs text-slate-500">ค้นหา กรอง และดาวน์โหลดเอกสารทั้งหมดในระบบ</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button id="clearFilterBtn" onclick="clearDocFilters()" class="hidden items-center gap-1 text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-xl transition">
+                      <i class="fa-solid fa-rotate-left"></i> ล้างตัวกรอง
+                    </button>
+                    <button onclick="openLeaderboardModal()" class="inline-flex sm:hidden items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-2 rounded-xl transition">
+                      <i class="fa-solid fa-trophy"></i> จัดอันดับ
+                    </button>
                   </div>
                 </div>
-                <div class="flex gap-2 w-full sm:w-auto">
-                  <div class="relative flex-1 sm:w-48">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" id="searchInput" onkeyup="filterDocuments()" placeholder="ค้นหาชื่อไฟล์..." class="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+
+                <!-- Multi-Filter Controls -->
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1">
+                  <!-- Search Box -->
+                  <div class="sm:col-span-5 relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" onkeyup="filterDocuments()" placeholder="พิมพ์ชื่อไฟล์, ผู้แชร์ หรือคำค้น..." class="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition font-medium">
+                    <button id="clearSearchInputBtn" onclick="document.getElementById('searchInput').value=''; filterDocuments();" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 text-xs">
+                      <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
                   </div>
-                  <select id="categoryFilter" onchange="filterDocuments()" class="w-28 text-sm bg-white border border-slate-200 rounded-lg px-2 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition cursor-pointer">
-                    <option value="">ทุกวิชา</option>
-                  </select>
+
+                  <!-- Category Filter -->
+                  <div class="sm:col-span-3">
+                    <select id="categoryFilter" onchange="filterDocuments()" class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition cursor-pointer font-medium text-slate-700">
+                      <option value="">📚 ทุกวิชา</option>
+                    </select>
+                  </div>
+
+                  <!-- Doc Type Filter -->
+                  <div class="sm:col-span-2">
+                    <select id="docTypeFilter" onchange="filterDocuments()" class="w-full text-xs bg-white border border-slate-200 rounded-xl px-2.5 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition cursor-pointer font-medium text-slate-700">
+                      <option value="">🏷️ ทุกประเภท</option>
+                      <option value="สรุป">📝 สรุปเนื้อหา</option>
+                      <option value="ข้อสอบ">🎯 แนวข้อสอบ</option>
+                      <option value="แบบฝึกหัด">📐 แบบฝึกหัด</option>
+                      <option value="ทั่วไป">📄 ทั่วไป</option>
+                    </select>
+                  </div>
+
+                  <!-- Sort By -->
+                  <div class="sm:col-span-2">
+                    <select id="docSortFilter" onchange="filterDocuments()" class="w-full text-xs bg-white border border-slate-200 rounded-xl px-2.5 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition cursor-pointer font-medium text-slate-700">
+                      <option value="newest">🕒 ล่าสุด</option>
+                      <option value="views">🔥 ยอดวิวสูงสุด</option>
+                      <option value="nameAsc">🔤 ชื่อ ก-ฮ</option>
+                      <option value="nameDesc">🔤 ชื่อ ฮ-ก</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Tag Bar (Quick Filter Chips) -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar text-[11px] font-bold">
+                  <span class="text-slate-400 text-[10px] uppercase font-bold shrink-0 mr-1"><i class="fa-solid fa-tags text-[9px] mr-1"></i>แท็ก:</span>
+                  <button type="button" onclick="setDocTagFilter('')" id="tagBtn_all" class="tag-chip px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs transition shrink-0">ทั้งหมด</button>
+                  <button type="button" onclick="setDocTagFilter('สรุป')" id="tagBtn_สรุป" class="tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition shrink-0">📝 สรุปเนื้อหา</button>
+                  <button type="button" onclick="setDocTagFilter('ข้อสอบ')" id="tagBtn_ข้อสอบ" class="tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition shrink-0">🎯 ข้อสอบ</button>
+                  <button type="button" onclick="setDocTagFilter('แบบฝึกหัด')" id="tagBtn_แบบฝึกหัด" class="tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition shrink-0">📐 แบบฝึกหัด</button>
+                  <button type="button" onclick="setDocTagFilter('popular')" id="tagBtn_popular" class="tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-orange-50 text-orange-600 border border-orange-200 transition shrink-0"><i class="fa-solid fa-fire mr-1"></i>ยอดนิยม</button>
+                  <button type="button" onclick="setDocTagFilter('fav')" id="tagBtn_fav" class="tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 transition shrink-0"><i class="fa-solid fa-heart mr-1"></i>รายการโปรด</button>
                 </div>
               </div>
+
               <div class="overflow-x-auto flex-1">
                 <table class="w-full text-sm text-left whitespace-nowrap">
                   <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
@@ -968,6 +1036,42 @@
     </div>
   </div>
 
-  <script src="assets/js/app.js?v=14"></script>
+  <!-- Leaderboard Modal -->
+  <div id="leaderboardModal" class="fixed inset-0 z-[65] hidden bg-slate-900/70 backdrop-blur-sm flex justify-center items-center p-4">
+    <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shadow-inner">
+            <i class="fa-solid fa-trophy text-amber-200"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-white">ตารางจัดอันดับไฟล์ยอดนิยม (Leaderboard)</h3>
+            <p class="text-xs text-orange-100">เอกสารที่มีจำนวนผู้เปิดอ่านสูงสุดจากคลังทั้งหมด</p>
+          </div>
+        </div>
+        <button onclick="closeLeaderboardModal()" class="w-9 h-9 flex justify-center items-center rounded-xl bg-white/15 hover:bg-white/25 text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <!-- Leaderboard Filters / Stats Bar -->
+      <div class="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-500">กรองวิชา:</span>
+          <select id="leaderboardSubjectFilter" onchange="renderLeaderboardTable()" class="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-orange-400 outline-none cursor-pointer">
+            <option value="">ทั้งหมดทุกวิชา</option>
+          </select>
+        </div>
+        <div class="text-xs text-slate-500 font-medium">
+          ยอดวิวรวมทั้งระบบ: <b id="leaderboardTotalViews" class="text-orange-600 font-bold">0</b> ครั้ง
+        </div>
+      </div>
+
+      <!-- Leaderboard List -->
+      <div class="p-6 overflow-y-auto flex-1 space-y-3" id="leaderboardListBody">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/app.js?v=15"></script>
 </body>
 </html>

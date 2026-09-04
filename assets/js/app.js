@@ -5,7 +5,8 @@ let appState = {
   documents: [], categories: [], subjects: [], tasks: [], flashcards: [], logs: [], folders: [],
   username: '', role: '',
   selectedFiles: [], currentMode: 'file', currentTab: 'tabMain',
-  currentFolderId: '', favorites: []
+  currentFolderId: '', favorites: [],
+  activeTag: ''
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -248,7 +249,10 @@ function resetFolderCascade() {
 
 function updateCategoryDropdowns() {
   const cats = appState.categories.filter(c => c.name.trim() !== '').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-  document.getElementById('categoryFilter').innerHTML = '<option value="">ทุกวิชา</option>' + cats;
+  const catFilter = document.getElementById('categoryFilter');
+  if(catFilter) catFilter.innerHTML = '<option value="">📚 ทุกวิชา</option>' + cats;
+  const lbCat = document.getElementById('leaderboardSubjectFilter');
+  if(lbCat) lbCat.innerHTML = '<option value="">ทั้งหมดทุกวิชา</option>' + cats;
 
   // ฟอร์มอัปโหลดใช้ระบบเลือกโฟลเดอร์ทีละชั้น (ดู renderFolderCascade)
 
@@ -274,41 +278,160 @@ function updateCategoryDropdowns() {
   }
 }
 
-function filterDocuments() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const c = document.getElementById('categoryFilter').value;
-  
-  const docs = appState.documents.filter(d => {
-    const matchName = d.title.toLowerCase().includes(q);
-    const matchCat = c ? d.category === c : true;
-    // หน้าแรกเป็นคลังเอกสารรวม จึงต้องแสดงทุกประเภทเนื้อหา
-    // ส่วนโหมดเตรียมสอบยังคงมีตัวกรองประเภทแยกต่างหาก
-    return matchName && matchCat;
+function setDocTagFilter(tag) {
+  appState.activeTag = tag;
+  // อัปเดตสไตล์ของ tag chips
+  document.querySelectorAll('.tag-chip').forEach(btn => {
+    btn.className = 'tag-chip px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition shrink-0';
   });
-  
+  const activeBtnId = tag ? 'tagBtn_' + tag : 'tagBtn_all';
+  const activeBtn = document.getElementById(activeBtnId);
+  if(activeBtn) {
+    if(tag === 'popular') {
+      activeBtn.className = 'tag-chip px-2.5 py-1 rounded-lg bg-orange-500 text-white shadow-xs transition shrink-0';
+    } else if(tag === 'fav') {
+      activeBtn.className = 'tag-chip px-2.5 py-1 rounded-lg bg-rose-500 text-white shadow-xs transition shrink-0';
+    } else {
+      activeBtn.className = 'tag-chip px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs transition shrink-0';
+    }
+  }
+  filterDocuments();
+}
+
+function clearDocFilters() {
+  const searchInput = document.getElementById('searchInput');
+  const catFilter = document.getElementById('categoryFilter');
+  const typeFilter = document.getElementById('docTypeFilter');
+  const sortFilter = document.getElementById('docSortFilter');
+  if(searchInput) searchInput.value = '';
+  if(catFilter) catFilter.value = '';
+  if(typeFilter) typeFilter.value = '';
+  if(sortFilter) sortFilter.value = 'newest';
+  setDocTagFilter('');
+}
+
+function filterDocuments() {
+  const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+  const c = document.getElementById('categoryFilter')?.value || '';
+  const type = document.getElementById('docTypeFilter')?.value || '';
+  const sort = document.getElementById('docSortFilter')?.value || 'newest';
+  const tag = appState.activeTag || '';
+
+  // แสดง/ซ่อนปุ่มล้างคำค้นในช่อง search
+  const clearSearchBtn = document.getElementById('clearSearchInputBtn');
+  if(clearSearchBtn) {
+    clearSearchBtn.classList.toggle('hidden', !q);
+  }
+
+  // แสดง/ซ่อนปุ่มล้างตัวกรองรวม
+  const isFiltering = Boolean(q || c || type || tag || (sort !== 'newest'));
+  const clearFilterBtn = document.getElementById('clearFilterBtn');
+  if(clearFilterBtn) {
+    clearFilterBtn.classList.toggle('hidden', !isFiltering);
+    clearFilterBtn.classList.toggle('inline-flex', isFiltering);
+  }
+
+  let docs = appState.documents.filter(d => {
+    // 1. ค้นหาคีย์เวิร์ด (ชื่อเอกสาร, ชื่อไฟล์เดิม, ผู้อัปโหลด, หมวดหมู่วิชา)
+    let matchQuery = true;
+    if(q) {
+      const inTitle = (d.title || '').toLowerCase().includes(q);
+      const inOrig = (d.originalFilename || '').toLowerCase().includes(q);
+      const inUploader = (d.uploader || '').toLowerCase().includes(q);
+      const inCategory = (d.category || '').toLowerCase().includes(q);
+      matchQuery = inTitle || inOrig || inUploader || inCategory;
+    }
+
+    // 2. กรองตามวิชา
+    const matchCat = c ? d.category === c : true;
+
+    // 3. กรองตามประเภทเนื้อหา (docType: สรุป, ข้อสอบ, แบบฝึกหัด, ทั่วไป)
+    const matchType = type ? (d.docType === type) : true;
+
+    // 4. กรองตามแท็กที่เลือก
+    let matchTag = true;
+    if(tag === 'popular') {
+      matchTag = (d.views || 0) > 0;
+    } else if(tag === 'fav') {
+      matchTag = appState.favorites.indexOf(d.fileUrl) !== -1;
+    } else if(tag) {
+      matchTag = (d.docType === tag) || (d.title.includes(tag)) || (d.category.includes(tag));
+    }
+
+    return matchQuery && matchCat && matchType && matchTag;
+  });
+
+  // 5. การจัดเรียง (Sorting)
+  if(sort === 'views') {
+    docs.sort((a, b) => (b.views || 0) - (a.views || 0));
+  } else if(sort === 'nameAsc') {
+    docs.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'th'));
+  } else if(sort === 'nameDesc') {
+    docs.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'th'));
+  } else {
+    // newest: เรียงตามลำดับปัจจุบัน (ล่าสุดอยู่บนสุด)
+  }
+
+  // อัปเดต badge นับจำนวนไฟล์
+  const countBadge = document.getElementById('docCountBadge');
+  if(countBadge) {
+    countBadge.innerText = `${docs.length} ไฟล์` + (isFiltering ? ` (จาก ${appState.documents.length})` : '');
+  }
+
   const tb = document.getElementById('docTableBody');
+  if(!tb) return;
+
   if(docs.length === 0) {
-    tb.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-400 font-medium">ไม่พบเอกสารที่ค้นหา</td></tr>`;
+    tb.innerHTML = `
+      <tr>
+        <td colspan="6" class="py-16 text-center text-slate-400 font-medium">
+          <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300 text-2xl">
+            <i class="fa-solid fa-folder-open"></i>
+          </div>
+          <p class="font-bold text-slate-600">ไม่พบเอกสารตรงตามเงื่อนไข</p>
+          <p class="text-xs text-slate-400 mt-1">ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองเพื่อดูเอกสารทั้งหมด</p>
+          <button onclick="clearDocFilters()" class="mt-4 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs rounded-xl transition">
+            <i class="fa-solid fa-rotate-left mr-1"></i> ล้างตัวกรองทั้งหมด
+          </button>
+        </td>
+      </tr>`;
     return;
   }
   
   tb.innerHTML = docs.map(d => {
     const isFav = appState.favorites.indexOf(d.fileUrl) !== -1;
+    let typeBadgeColor = 'bg-slate-100 text-slate-600 border-slate-200';
+    if(d.docType === 'สรุป') typeBadgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    else if(d.docType === 'ข้อสอบ') typeBadgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+    else if(d.docType === 'แบบฝึกหัด') typeBadgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
     return `
-    <tr class="hover:bg-slate-50 border-b transition">
-      <td class="py-3 px-4 flex items-center gap-3 font-medium text-slate-700">
-        <div class="w-8 h-8 rounded bg-blue-50 text-blue-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-pdf"></i></div>
-        <span class="truncate max-w-[200px]" title="${d.title}">${d.title}</span>
+    <tr class="hover:bg-slate-50/80 border-b border-slate-100 transition">
+      <td class="py-3 px-4 font-medium text-slate-700">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center shrink-0 shadow-2xs"><i class="fa-solid fa-file-pdf"></i></div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="truncate max-w-[220px] font-bold text-slate-800 hover:text-blue-600 cursor-pointer" onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" title="${d.title}">${d.title}</span>
+              <span class="text-[9px] font-black px-1.5 py-0.2 rounded border ${typeBadgeColor}">${d.docType || 'ทั่วไป'}</span>
+            </div>
+            <p class="text-[10px] text-slate-400 sm:hidden truncate mt-0.5">${d.uploader} · ${d.category}</p>
+          </div>
+        </div>
       </td>
-      <td class="py-3 px-2 text-slate-500 max-w-[150px] truncate hidden sm:table-cell" title="${d.originalFilename && d.originalFilename !== '-' ? d.originalFilename : d.title}">
+      <td class="py-3 px-2 text-slate-500 max-w-[150px] truncate hidden sm:table-cell text-xs" title="${d.originalFilename && d.originalFilename !== '-' ? d.originalFilename : d.title}">
         ${d.originalFilename && d.originalFilename !== '-' ? d.originalFilename : d.title}
       </td>
-      <td class="py-3 px-2 text-slate-600">${d.uploader}</td>
-      <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm">${d.category}</span></td>
-      <td class="py-3 px-2 text-slate-500 hidden md:table-cell"><i class="fa-solid fa-eye mr-1 text-slate-300"></i>${d.views || 0}</td>
+      <td class="py-3 px-2 text-slate-600 text-xs">${d.uploader}</td>
+      <td class="py-3 px-2"><span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-bold shadow-2xs">${d.category}</span></td>
+      <td class="py-3 px-2 text-slate-500 hidden md:table-cell text-xs">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${Number(d.views || 0) > 0 ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-400'}">
+          <i class="fa-solid fa-eye text-[10px]"></i> ${d.views || 0}
+        </span>
+      </td>
       <td class="py-3 px-4 text-right whitespace-nowrap">
         <button onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold text-xs transition">
-          เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          เปิดไฟล์ <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
         </button>
         <button onclick="toggleFavorite('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded-lg transition align-middle ${isFav ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-100 hover:bg-rose-50 hover:text-rose-400'}" title="${isFav ? 'นำออกจากรายการโปรด' : 'เก็บเข้ารายการโปรด'}"><i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i></button>
         <button onclick="openFileShare('${d.id}')" class="w-8 h-8 inline-flex items-center justify-center text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition align-middle" title="แชร์ไฟล์ (QR / ลิงก์)"><i class="fa-solid fa-qrcode"></i></button>
@@ -318,6 +441,7 @@ function filterDocuments() {
     </tr>`;
   }).join('');
 }
+
 
 // ---------------------------------------------------
 // ❤️ รายการโปรด (ผูกกับ URL ไฟล์ — คงที่แม้แถวชีตเลื่อน)
@@ -611,26 +735,149 @@ function copyFileShareLink() {
   else { document.execCommand('copy'); done(); }
 }
 
-// ไฟล์ยอดนิยม
+// ไฟล์ยอดนิยม & Leaderboard
 function renderPopular() {
   const sec = document.getElementById('popularSection');
   const list = document.getElementById('popularList');
+  const totalCountEl = document.getElementById('totalViewedDocsCount');
   if(!sec || !list) return;
+
   const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
-  const top = [...appState.documents].filter(d => (d.views || 0) > 0).sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
-  if(top.length === 0) { sec.classList.add('hidden'); return; }
+  const viewedDocs = appState.documents.filter(d => (d.views || 0) > 0);
+  const top = [...viewedDocs].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
+
+  if(totalCountEl) totalCountEl.innerText = viewedDocs.length;
+
+  if(top.length === 0) {
+    sec.classList.add('hidden');
+    return;
+  }
   sec.classList.remove('hidden');
-  list.innerHTML = top.map((d, i) => `
-    <div onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-lg hover:border-orange-300 transition cursor-pointer hover:-translate-y-1">
+
+  list.innerHTML = top.map((d, i) => {
+    const isTop3 = i < 3;
+    const borderStyle = i === 0 ? 'border-amber-300 ring-2 ring-amber-200/50 bg-gradient-to-b from-amber-50/40 to-white' 
+                      : i === 1 ? 'border-slate-300 bg-gradient-to-b from-slate-50/40 to-white' 
+                      : i === 2 ? 'border-orange-200 bg-gradient-to-b from-orange-50/30 to-white' 
+                      : 'border-slate-200 bg-white';
+    return `
+    <div onclick="openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="${borderStyle} rounded-2xl border p-4 shadow-sm hover:shadow-xl hover:border-orange-400 transition cursor-pointer hover:-translate-y-1 relative group">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-xl">${medals[i] || '📄'}</span>
-        <span class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full"><i class="fa-solid fa-eye mr-1"></i>${d.views || 0}</span>
+        <span class="text-2xl">${medals[i] || '📄'}</span>
+        <span class="text-[11px] font-black text-orange-600 bg-orange-100/80 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+          <i class="fa-solid fa-eye text-[10px]"></i> ${d.views || 0}
+        </span>
       </div>
-      <p class="font-bold text-slate-700 text-xs leading-snug line-clamp-2" title="${d.title}">${d.title}</p>
-      <p class="text-[10px] text-slate-400 mt-1.5 truncate">${d.uploader} · ${d.category || ''}</p>
-    </div>
-  `).join('');
+      <p class="font-bold text-slate-800 text-xs leading-snug line-clamp-2 group-hover:text-orange-600 transition" title="${d.title}">${d.title}</p>
+      <div class="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-100">
+        <span class="truncate max-w-[100px]">${d.uploader}</span>
+        <span class="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-bold">${d.category || 'ทั่วไป'}</span>
+      </div>
+    </div>`;
+  }).join('');
 }
+
+// ---------------------------------------------------
+// 🏆 Leaderboard Modal
+// ---------------------------------------------------
+function openLeaderboardModal() {
+  const modal = document.getElementById('leaderboardModal');
+  if(!modal) return;
+  modal.classList.remove('hidden');
+  renderLeaderboardTable();
+}
+
+function closeLeaderboardModal() {
+  const modal = document.getElementById('leaderboardModal');
+  if(modal) modal.classList.add('hidden');
+}
+
+function renderLeaderboardTable() {
+  const listEl = document.getElementById('leaderboardListBody');
+  const subjectFilter = document.getElementById('leaderboardSubjectFilter')?.value || '';
+  const totalViewsEl = document.getElementById('leaderboardTotalViews');
+  if(!listEl) return;
+
+  // กรองไฟล์
+  let docs = [...appState.documents].filter(d => {
+    if((d.views || 0) <= 0) return false;
+    if(subjectFilter && d.category !== subjectFilter) return false;
+    return true;
+  });
+
+  // คำนวณยอดวิวรวม
+  const totalViews = docs.reduce((acc, cur) => acc + (cur.views || 0), 0);
+  if(totalViewsEl) totalViewsEl.innerText = totalViews.toLocaleString();
+
+  // เรียงลำดับจากยอดวิวมากสุดไปน้อยสุด
+  docs.sort((a, b) => (b.views || 0) - (a.views || 0));
+
+  if(docs.length === 0) {
+    listEl.innerHTML = `
+      <div class="py-16 text-center text-slate-400">
+        <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300 text-3xl">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <p class="font-bold text-slate-600">ยังไม่มีสถิติยอดวิวในหมวดหมู่นี้</p>
+        <p class="text-xs text-slate-400 mt-1">เมื่อมีการเปิดอ่านไฟล์ ยอดวิวจะถูกนำมาจัดอันดับที่นี่ทันที</p>
+      </div>`;
+    return;
+  }
+
+  const maxViews = docs[0].views || 1;
+  const medals = ['🥇', '🥈', '🥉'];
+
+  listEl.innerHTML = docs.map((d, index) => {
+    const rank = index + 1;
+    const medal = rank <= 3 ? medals[rank - 1] : `<span class="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">#${rank}</span>`;
+    const percent = Math.min(100, Math.round(((d.views || 0) / maxViews) * 100));
+    const isTopRank = rank <= 3;
+    const bgRow = rank === 1 ? 'bg-amber-50/60 border-amber-200' 
+                : rank === 2 ? 'bg-slate-50 border-slate-200' 
+                : rank === 3 ? 'bg-orange-50/40 border-orange-200' 
+                : 'bg-white border-slate-100 hover:bg-slate-50/70';
+
+    return `
+      <div class="p-4 rounded-2xl border ${bgRow} flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition shadow-2xs">
+        <div class="flex items-center gap-3.5 min-w-0">
+          <div class="w-8 flex items-center justify-center text-xl shrink-0">
+            ${medal}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-bold text-slate-800 text-sm hover:text-orange-600 cursor-pointer truncate max-w-[280px]" onclick="closeLeaderboardModal(); openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" title="${d.title}">
+                ${d.title}
+              </span>
+              <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">${d.docType || 'ทั่วไป'}</span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+              <span><i class="fa-solid fa-user mr-1 text-[10px]"></i>${d.uploader}</span>
+              <span>•</span>
+              <span class="text-slate-600 font-semibold">${d.category || 'ทั่วไป'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <div class="text-right min-w-[90px]">
+            <div class="flex items-center sm:justify-end gap-1 font-black text-sm ${isTopRank ? 'text-orange-600' : 'text-slate-700'}">
+              <i class="fa-solid fa-eye text-xs text-orange-500"></i> ${d.views || 0}
+              <span class="text-[10px] font-medium text-slate-400">วิว</span>
+            </div>
+            <div class="w-24 bg-slate-200 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+              <div class="bg-gradient-to-r from-amber-500 to-orange-500 h-1.5 rounded-full" style="width: ${percent}%"></div>
+            </div>
+          </div>
+
+          <button onclick="closeLeaderboardModal(); openIframeModal('${d.fileUrl}', '${d.title}', '${d.id}')" class="px-3.5 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs transition inline-flex items-center gap-1.5">
+            เปิดดู <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 
 function filterStudyData() {
   const subj = document.getElementById('studySubjectFilter').value;
@@ -1412,7 +1659,13 @@ function openIframeModal(url, title, docId) {
   // นับยอดวิว (ถ้าเป็นเอกสารในระบบ)
   if(docId) {
     const d = appState.documents.find(x => x.id === docId);
-    if(d) { d.views = (d.views || 0) + 1; renderPopular(); filterDocuments(); }
+    if(d) {
+      d.views = (d.views || 0) + 1;
+      renderPopular();
+      filterDocuments();
+      const lbModal = document.getElementById('leaderboardModal');
+      if(lbModal && !lbModal.classList.contains('hidden')) renderLeaderboardTable();
+    }
     fetch(API_URL + `?action=trackView&docId=${docId}`).catch(() => {});
   }
   // เว็บไซต์ภายนอก เช่น AI Studio/ChatGPT มักบล็อกการแสดงผลใน iframe
